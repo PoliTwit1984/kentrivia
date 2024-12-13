@@ -1,0 +1,455 @@
+{% extends "base.html" %}
+
+{% block title %}Play Game{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <!-- Game Header -->
+            <div class="game-header text-center mb-4">
+                <h2>{{ game.title }}</h2>
+                <div class="player-info">
+                    <span class="badge bg-primary fs-5">{{ player.nickname }}</span>
+                    <span class="badge bg-success fs-5 ms-2">Score: <span id="playerScore">{{ player.score }}</span></span>
+                    <span class="badge bg-warning text-dark fs-5 ms-2">Streak: <span id="playerStreak">{{ player.current_streak }}</span></span>
+                </div>
+            </div>
+
+            <!-- Connection Status -->
+            <div id="connectionStatus" class="alert alert-info text-center" style="display: none;">
+                <i class="fas fa-sync fa-spin"></i> Connecting to game server...
+            </div>
+
+            <!-- Waiting Screen -->
+            <div id="waitingScreen" class="text-center">
+                <div class="card">
+                    <div class="card-body">
+                        <h3>Waiting for next question...</h3>
+                        <div class="spinner-border text-primary mt-3" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Question Screen -->
+            <div id="questionScreen" class="text-center" style="display: none;">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h3 id="questionText" class="mb-4"></h3>
+                        <div class="progress mb-4">
+                            <div id="timeProgress" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" style="width: 100%"></div>
+                        </div>
+                        <div id="answerOptions" class="row row-cols-1 row-cols-md-2 g-4">
+                            <!-- Answer options will be added here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Answer Result Screen -->
+            <div id="resultScreen" class="text-center" style="display: none;">
+                <div class="card">
+                    <div class="card-body">
+                        <div id="correctResult" style="display: none;">
+                            <h3 class="text-success mb-4">
+                                <i class="fas fa-check-circle"></i> Correct!
+                            </h3>
+                            <div class="points-earned">
+                                <span class="display-4" id="pointsEarned">+0</span>
+                                <p class="text-muted">points earned</p>
+                            </div>
+                            <div class="streak-info" style="display: none;">
+                                <span class="badge bg-warning text-dark">
+                                    <i class="fas fa-fire"></i> Streak: <span id="newStreak">0</span>
+                                </span>
+                            </div>
+                        </div>
+                        <div id="incorrectResult" style="display: none;">
+                            <h3 class="text-danger mb-4">
+                                <i class="fas fa-times-circle"></i> Incorrect
+                            </h3>
+                            <p>The correct answer was: <span id="correctAnswer" class="fw-bold"></span></p>
+                            <p class="text-muted">Keep trying!</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Leaderboard -->
+            <div id="leaderboardScreen" class="mt-4" style="display: none;">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">Leaderboard</h4>
+                    </div>
+                    <div class="card-body">
+                        <div id="leaderboard" class="list-group">
+                            <!-- Leaderboard entries will be added here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Game Over Modal -->
+<div class="modal fade" id="gameOverModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Game Over!</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="finalScore" class="text-center mb-4">
+                    <h3>Your Final Score</h3>
+                    <div class="display-1" id="finalScoreValue"></div>
+                </div>
+                <div id="finalRank" class="text-center mb-4">
+                    <h4>Your Rank</h4>
+                    <div class="display-4" id="finalRankValue"></div>
+                </div>
+                <div id="finalLeaderboard">
+                    <!-- Final leaderboard will be shown here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="{{ url_for('main.index') }}" class="btn btn-primary">Play Another Game</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<style>
+.answer-option {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+.answer-option:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.answer-option.selected {
+    background-color: #007bff;
+    color: white;
+}
+
+.answer-option.correct {
+    background-color: #28a745;
+    color: white;
+}
+
+.answer-option.incorrect {
+    background-color: #dc3545;
+    color: white;
+}
+
+.points-earned {
+    animation: pointsEarned 1s ease-out;
+}
+
+@keyframes pointsEarned {
+    0% { transform: scale(0.5); opacity: 0; }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.leaderboard-item {
+    transition: all 0.3s ease;
+}
+
+.leaderboard-item.current-player {
+    background-color: #e3f2fd;
+    border-color: #007bff;
+}
+
+.leaderboard-item:hover {
+    transform: translateX(5px);
+}
+
+.streak-bonus {
+    position: absolute;
+    top: -20px;
+    right: 10px;
+    animation: streakBonus 0.5s ease-out;
+}
+
+@keyframes streakBonus {
+    0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Initialize socket with proper configuration
+const socket = io({
+    reconnection: true,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000
+});
+
+const gamePin = '{{ game.pin }}';
+const playerId = {{ player.id }};
+let currentQuestion = null;
+let answerSubmitted = false;
+let timer = null;
+let startTime = null;
+let connectionStatus = document.getElementById('connectionStatus');
+
+// Connect socket when document is ready
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('Initializing game play...');
+    showConnectionStatus();
+    socket.connect();
+});
+
+function showConnectionStatus(message = 'Connecting to game server...', isError = false) {
+    connectionStatus.className = `alert ${isError ? 'alert-danger' : 'alert-info'} text-center`;
+    connectionStatus.innerHTML = `<i class="fas ${isError ? 'fa-exclamation-triangle' : 'fa-sync fa-spin'}"></i> ${message}`;
+    connectionStatus.style.display = 'block';
+}
+
+function hideConnectionStatus() {
+    connectionStatus.style.display = 'none';
+}
+
+// Connect to the game room and notify ready
+socket.on('connect', () => {
+    console.log('Socket connected, joining game room:', gamePin);
+    socket.emit('player_join', { pin: gamePin });
+    showConnectionStatus('Connected to game server', false);
+    setTimeout(() => {
+        hideConnectionStatus();
+        // Notify that this player is ready
+        socket.emit('player_ready', { pin: gamePin });
+    }, 1000);
+});
+
+// Handle socket disconnect
+socket.on('disconnect', () => {
+    console.log('Socket disconnected');
+    showConnectionStatus('Lost connection to server. Attempting to reconnect...', true);
+});
+
+// Handle socket error
+socket.on('error', (error) => {
+    console.error('Socket error:', error);
+    showConnectionStatus('Connection error occurred', true);
+});
+
+// Handle socket connect error
+socket.on('connect_error', (error) => {
+    console.error('Socket connect error:', error);
+    showConnectionStatus('Failed to connect to server', true);
+});
+
+// Handle all players ready
+socket.on('all_players_ready', () => {
+    console.log('All players are ready');
+    showToast('All players ready - game starting soon!', 'success');
+});
+
+// Handle new question
+socket.on('question_started', (data) => {
+    console.log('Received question:', data);
+    hideConnectionStatus();
+    showQuestion(data);
+});
+
+// Handle answer result
+socket.on('answer_result', (data) => {
+    console.log('Answer result received:', data);
+    showAnswerResult(data);
+});
+
+// Handle question end
+socket.on('question_ended', (data) => {
+    console.log('Question ended:', data);
+    showQuestionResults(data);
+});
+
+// Handle leaderboard updates
+socket.on('leaderboard_update', (data) => {
+    console.log('Leaderboard update:', data);
+    updateLeaderboard(data.leaderboard);
+});
+
+// Handle game end
+socket.on('game_ended', (data) => {
+    console.log('Game ended:', data);
+    showGameOver(data);
+});
+
+function showQuestion(question) {
+    console.log('Showing question:', question);
+    currentQuestion = question;
+    answerSubmitted = false;
+    startTime = Date.now();
+    
+    // Update question text
+    document.getElementById('questionText').textContent = question.content;
+    
+    // Create answer options
+    const optionsContainer = document.getElementById('answerOptions');
+    optionsContainer.innerHTML = '';
+    
+    // Shuffle answers for randomization
+    const answers = [...question.answers];
+    for (let i = answers.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [answers[i], answers[j]] = [answers[j], answers[i]];
+    }
+    
+    answers.forEach((answer, index) => {
+        const col = document.createElement('div');
+        col.className = 'col';
+        col.innerHTML = `
+            <div class="answer-option card" onclick="submitAnswer('${answer}')">
+                <div class="card-body">
+                    <h5 class="card-title">${answer}</h5>
+                </div>
+            </div>
+        `;
+        optionsContainer.appendChild(col);
+    });
+    
+    // Show question screen and start timer
+    document.getElementById('waitingScreen').style.display = 'none';
+    document.getElementById('resultScreen').style.display = 'none';
+    document.getElementById('leaderboardScreen').style.display = 'none';
+    document.getElementById('questionScreen').style.display = 'block';
+    
+    startTimer(question.time_limit);
+}
+
+function submitAnswer(answer) {
+    if (answerSubmitted) return;
+    answerSubmitted = true;
+    
+    const responseTime = (Date.now() - startTime) / 1000;
+    console.log('Submitting answer:', answer, 'Response time:', responseTime);
+    
+    // Highlight selected answer
+    const options = document.querySelectorAll('.answer-option');
+    options.forEach(option => {
+        if (option.textContent.trim() === answer) {
+            option.classList.add('selected');
+        }
+        option.onclick = null;
+    });
+    
+    // Send answer to server
+    socket.emit('submit_answer', {
+        question_id: currentQuestion.id,
+        answer: answer,
+        response_time: responseTime
+    });
+}
+
+function startTimer(duration) {
+    let timeLeft = duration;
+    const progressBar = document.getElementById('timeProgress');
+    
+    if (timer) clearInterval(timer);
+    
+    timer = setInterval(() => {
+        timeLeft--;
+        const percentage = (timeLeft / duration) * 100;
+        progressBar.style.width = `${percentage}%`;
+        
+        if (timeLeft <= 0) {
+            clearInterval(timer);
+            if (!answerSubmitted) {
+                console.log('Time up, submitting empty answer');
+                submitAnswer('');  // Submit empty answer if time runs out
+            }
+        }
+    }, 1000);
+}
+
+function showAnswerResult(data) {
+    clearInterval(timer);
+    
+    document.getElementById('questionScreen').style.display = 'none';
+    document.getElementById('resultScreen').style.display = 'block';
+    
+    if (data.is_correct) {
+        document.getElementById('correctResult').style.display = 'block';
+        document.getElementById('incorrectResult').style.display = 'none';
+        document.getElementById('pointsEarned').textContent = `+${data.points_awarded}`;
+        
+        // Update score and streak
+        document.getElementById('playerScore').textContent = data.new_score;
+        document.getElementById('playerStreak').textContent = data.new_streak;
+        
+        if (data.new_streak > 1) {
+            document.querySelector('.streak-info').style.display = 'block';
+            document.getElementById('newStreak').textContent = data.new_streak;
+        }
+        
+        showToast('Correct answer!', 'success');
+    } else {
+        document.getElementById('correctResult').style.display = 'none';
+        document.getElementById('incorrectResult').style.display = 'block';
+        document.getElementById('correctAnswer').textContent = data.correct_answer;
+        
+        showToast('Incorrect answer', 'danger');
+    }
+}
+
+function showQuestionResults(data) {
+    // Show leaderboard after a delay
+    setTimeout(() => {
+        document.getElementById('leaderboardScreen').style.display = 'block';
+        socket.emit('request_leaderboard', { pin: gamePin });
+    }, 2000);
+}
+
+function updateLeaderboard(leaderboard) {
+    const container = document.getElementById('leaderboard');
+    container.innerHTML = '';
+    
+    leaderboard.forEach((player, index) => {
+        const item = document.createElement('div');
+        item.className = `list-group-item d-flex justify-content-between align-items-center
+                         ${player.player_id === playerId ? 'current-player' : ''}`;
+        
+        item.innerHTML = `
+            <div>
+                <span class="badge bg-secondary me-2">#${index + 1}</span>
+                <span>${player.nickname}</span>
+                ${player.streak > 1 ? `
+                    <span class="badge bg-warning text-dark ms-2">
+                        <i class="fas fa-fire"></i> ${player.streak}
+                    </span>
+                ` : ''}
+            </div>
+            <span class="badge bg-primary rounded-pill">${player.score}</span>
+        `;
+        
+        container.appendChild(item);
+    });
+}
+
+function showGameOver(data) {
+    const modal = new bootstrap.Modal(document.getElementById('gameOverModal'));
+    
+    document.getElementById('finalScoreValue').textContent = data.final_score;
+    document.getElementById('finalRankValue').textContent = `#${data.rank}`;
+    
+    updateLeaderboard(data.final_leaderboard);
+    modal.show();
+}
+</script>
+{% endblock %}

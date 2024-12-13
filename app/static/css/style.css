@@ -1,0 +1,187 @@
+/* Custom Variables */
+:root {
+    --primary-color: #007bff;
+    --secondary-color: #6c757d;
+    --success-color: #28a745;
+    --danger-color: #dc3545;
+    --warning-color: #ffc107;
+    --info-color: #17a2b8;
+}
+
+/* General Styles */
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+}
+
+.footer {
+    margin-top: auto;
+}
+
+/* Animation Classes */
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+.slide-in {
+    animation: slideIn 0.5s ease-out;
+}
+
+.bounce {
+    animation: bounce 0.5s ease-in-out;
+}
+
+/* Game Specific Styles */
+.game-pin {
+    font-family: monospace;
+    letter-spacing: 0.2em;
+    font-size: 2em;
+    font-weight: bold;
+}
+
+.player-card {
+    transition: transform 0.2s ease-in-out;
+}
+
+.player-card:hover {
+    transform: translateY(-5px);
+}
+
+.question-timer {
+    height: 4px;
+    transition: width 1s linear;
+}
+
+.answer-option {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.answer-option:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.answer-option.selected {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.answer-option.correct {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.answer-option.incorrect {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+/* Leaderboard Styles */
+.leaderboard-item {
+    transition: all 0.2s ease;
+}
+
+.leaderboard-item:hover {
+    transform: translateX(5px);
+}
+
+.leaderboard-item.current-player {
+    background-color: #e3f2fd;
+    border-color: var(--primary-color);
+}
+
+/* Streak Indicator */
+.streak-flame {
+    color: var(--warning-color);
+    animation: flicker 1s infinite;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes bounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+@keyframes flicker {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .game-pin {
+        font-size: 1.5em;
+    }
+    
+    .answer-option {
+        margin-bottom: 1rem;
+    }
+}
+
+/* Custom Form Styles */
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Custom Button Styles */
+.btn-custom {
+    transition: all 0.3s ease;
+}
+
+.btn-custom:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+/* Toast Notifications */
+.toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+}
+
+/* Loading Spinner */
+.spinner-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

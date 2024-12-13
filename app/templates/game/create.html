@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Create Game{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Create New Game</h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('game.create') }}">
+                        {{ form.hidden_tag() }}
+                        <div class="mb-3">
+                            {{ form.title.label(class="form-label") }}
+                            {{ form.title(class="form-control") }}
+                            {% for error in form.title.errors %}
+                                <span class="text-danger">{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                        <div class="d-grid gap-2">
+                            {{ form.submit(class="btn btn-primary") }}
+                            <a href="{{ url_for('game.dashboard') }}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0">What's Next?</h4>
+                </div>
+                <div class="card-body">
+                    <ol class="list-group list-group-flush list-group-numbered">
+                        <li class="list-group-item">After creating the game, you'll be taken to the edit page</li>
+                        <li class="list-group-item">Add questions manually or import them from OpenTDB</li>
+                        <li class="list-group-item">Share the game PIN with your players</li>
+                        <li class="list-group-item">Start the game when everyone is ready!</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
