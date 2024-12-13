@@ -15,6 +15,7 @@ A real-time multiplayer trivia game platform inspired by Kahoot!, built with Fla
   - Real-time player joining
   - Player ready status tracking
   - Flexible game start control
+  - Late-join support for ongoing games
   - Reliable WebSocket connections with auto-reconnect
   - Connection status indicators
 
@@ -32,6 +33,7 @@ A real-time multiplayer trivia game platform inspired by Kahoot!, built with Fla
   - Reliable question delivery
   - Connection status monitoring
   - Automatic reconnection handling
+  - Join ongoing games at any time
 
 ## Installation
 
@@ -80,21 +82,19 @@ The application will be available at `http://127.0.0.1:5001`.
 2. Create a new game from your dashboard
 3. Add questions manually or import from OpenTDB
 4. Share the game PIN with players
-5. Wait for players to join and be ready
-6. Start the game when all players are ready
-7. Control the game flow and monitor progress
-8. Monitor player connections and game status
+5. Start the game when ready
+6. Control the game flow and monitor progress
+7. Monitor player connections and game status
 
 ### For Players
 
 1. Go to the home page
 2. Enter the game PIN and choose a nickname
-3. Wait in the lobby for all players to be ready
-4. Host will start the game when everyone is ready
-5. Answer questions quickly for more points
-6. Keep your streak going for bonus points
-7. Check the leaderboard between questions
-8. Monitor your connection status
+3. Join the game at any time - before or during gameplay
+4. Answer questions quickly for more points
+5. Keep your streak going for bonus points
+6. Check the leaderboard between questions
+7. Monitor your connection status
 
 ## Project Structure
 
@@ -138,11 +138,11 @@ See [tasks.md](tasks.md) for a list of planned features and improvements.
 
 ### Common Issues
 
-1. **Questions not displaying**: If players don't see questions after game start:
-   - Ensure all players are properly connected (check connection status indicator)
-   - Make sure all players are marked as ready before starting
-   - Try refreshing the page if stuck in lobby
-   - Host may need to restart the game session
+1. **Questions not displaying**: If players don't see questions:
+   - Ensure you have a stable internet connection
+   - Check the connection status indicator
+   - Try refreshing the page
+   - You can rejoin at any time during the game
 
 2. **Connection Issues**:
    - Check your internet connection
@@ -151,10 +151,10 @@ See [tasks.md](tasks.md) for a list of planned features and improvements.
    - Refresh the page if connection issues persist
 
 3. **Game Start Issues**:
-   - Ensure all players are marked as ready
-   - Host must wait for ready confirmation before starting
-   - Check that all players are in the lobby
-   - Verify host has proper permissions
+   - Host can start the game at any time
+   - Players can join before or during gameplay
+   - Check that host has proper permissions
+   - Verify stable connection for all participants
 
 ## License
 

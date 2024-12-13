@@ -117,6 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
 socket.on('connect', () => {
     console.log('Socket connected, joining game room:', gamePin);
     socket.emit('player_join', { pin: gamePin });
+    // No need to emit player_ready here as it's handled server-side in handle_player_join
 });
 
 // Handle socket disconnect

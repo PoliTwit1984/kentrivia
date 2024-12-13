@@ -20,6 +20,7 @@
    - Added player ready status tracking
    - Fixed game start flow and redirects
    - Improved question display synchronization
+   - Added late join functionality for ongoing games
 
 3. Database Models
    - User model for host accounts
@@ -39,6 +40,7 @@
    - Improved error feedback
    - Added player ready status indicators
    - Improved game start flow UI
+   - Updated UI to support late joining
 
 # Tasks Remaining
 
@@ -50,6 +52,7 @@
    - Add game replay functionality
    - Add better error recovery after disconnection
    - Add game state recovery system
+   - Add spectator mode for non-participating viewers
 
 2. Question Management
    - Add bulk question import/export
@@ -65,7 +68,7 @@
    - Add player history
    - Add social features (friend lists, private games)
    - Add reconnection handling
-   - Add late join functionality
+   - Add player score adjustment for late joins
 
 4. Host Features
    - Add game templates
@@ -74,6 +77,7 @@
    - Add player moderation tools
    - Add game analytics dashboard
    - Add host controls for managing disconnected players
+   - Add controls for late-joining players
 
 5. UI/UX Improvements
    - Add animations for game events
@@ -82,6 +86,7 @@
    - Improve mobile responsiveness
    - Add loading states and transitions
    - Add better visual feedback for game state
+   - Add late-join notifications
 
 6. Testing
    - Add unit tests
@@ -91,6 +96,7 @@
    - Add performance testing
    - Add WebSocket connection testing
    - Add game flow testing
+   - Add late-join scenario testing
 
 7. Documentation
    - Add API documentation

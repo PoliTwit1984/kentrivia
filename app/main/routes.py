@@ -20,10 +20,6 @@ def index():
             flash('Invalid game PIN. Please try again.', 'danger')
             return redirect(url_for('main.index'))
         
-        if game.started_at:
-            flash('This game has already started. You cannot join now.', 'warning')
-            return redirect(url_for('main.index'))
-        
         if not game.is_active:
             flash('This game has ended.', 'warning')
             return redirect(url_for('main.index'))
@@ -40,10 +36,13 @@ def index():
         session['player_id'] = player.id
         session['game_pin'] = game.pin
         
-        flash('Successfully joined the game! Waiting for host to start...', 'success')
+        flash('Successfully joined the game!', 'success')
         
-        # Redirect to game lobby
-        return redirect(url_for('game.lobby', pin=game.pin))
+        # Redirect to game lobby or play based on game state
+        if game.started_at:
+            return redirect(url_for('game.play', pin=game.pin))
+        else:
+            return redirect(url_for('game.lobby', pin=game.pin))
     
     # Get active games count and total players
     active_games = Game.query.filter_by(is_active=True).count()

@@ -152,6 +152,10 @@ def lobby(pin):
         flash('You must join the game first.', 'warning')
         return redirect(url_for('main.index'))
     
+    # If game has started, redirect to play
+    if game.started_at and is_player:
+        return redirect(url_for('game.play', pin=pin))
+    
     return render_template('game/lobby.html',
                          title='Game Lobby',
                          game=game,
@@ -164,13 +168,10 @@ def play(pin):
     # Store game PIN in session for WebSocket room
     session['game_pin'] = pin
     
-    # Verify game is active and started
+    # Verify game is active
     if not game.is_active:
         flash('This game has ended.', 'warning')
         return redirect(url_for('main.index'))
-    
-    if not game.started_at:
-        return redirect(url_for('game.lobby', pin=pin))
     
     # Check if user is player
     player_id = session.get('player_id')
