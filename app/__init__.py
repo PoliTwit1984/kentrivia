@@ -2,12 +2,14 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_socketio import SocketIO
+from flask_wtf.csrf import CSRFProtect
 from config import Config
 import json
 
 db = SQLAlchemy()
 login_manager = LoginManager()
 socketio = SocketIO()
+csrf = CSRFProtect()
 
 def create_app():
     app = Flask(__name__)
@@ -15,6 +17,7 @@ def create_app():
 
     db.init_app(app)
     login_manager.init_app(app)
+    csrf.init_app(app)
     
     # Initialize SocketIO with proper configuration
     socketio.init_app(app, 

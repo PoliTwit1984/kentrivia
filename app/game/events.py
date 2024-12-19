@@ -1,72 +1,190 @@
-from flask import session
-from flask_socketio import emit, join_room, leave_room
+from flask import session, request
+from flask_socketio import emit, join_room, leave_room, disconnect
 from app import socketio, db
 from app.models import Game, Player, Question, Answer
 from datetime import datetime
 import json
+from collections import defaultdict
+import time
+from threading import Lock
+
+# Track active connections and rooms
+active_connections = {}  # sid -> {user_info}
+room_participants = defaultdict(set)  # game_pin -> set of sids
+connection_times = {}  # sid -> last_activity_timestamp
+room_lock = Lock()
+
+def update_connection_activity(sid):
+    """Update the last activity timestamp for a connection"""
+    connection_times[sid] = time.time()
+
+def cleanup_stale_connections():
+    """Remove stale connections and update room participants"""
+    current_time = time.time()
+    stale_threshold = 30  # seconds
+    
+    with room_lock:
+        # Find stale connections
+        stale_sids = [
+            sid for sid, last_time in connection_times.items()
+            if current_time - last_time > stale_threshold
+        ]
+        
+        # Clean up stale connections
+        for sid in stale_sids:
+            if sid in active_connections:
+                game_pin = active_connections[sid].get('game_pin')
+                if game_pin and game_pin in room_participants:
+                    room_participants[game_pin].discard(sid)
+                    if not room_participants[game_pin]:
+                        del room_participants[game_pin]
+                del active_connections[sid]
+            if sid in connection_times:
+                del connection_times[sid]
+
+def verify_room_presence():
+    """Verify all room participants are still connected"""
+    with room_lock:
+        for game_pin, participants in room_participants.items():
+            # Get currently connected participants
+            connected_participants = {
+                sid for sid in participants 
+                if sid in active_connections
+            }
+            
+            # Update room participants
+            if connected_participants != participants:
+                room_participants[game_pin] = connected_participants
+                
+                # Notify remaining participants about disconnected players
+                if connected_participants:
+                    connected_players = [
+                        active_connections[sid].get('player_info')
+                        for sid in connected_participants
+                    ]
+                    emit('room_participants_changed', {
+                        'connected_players': connected_players
+                    }, room=game_pin)
 
 @socketio.on('connect')
 def handle_connect():
+    """Handle new socket connections"""
+    sid = request.sid
     game_pin = session.get('game_pin')
-    if game_pin:
-        join_room(game_pin)
-        print(f"Client joined room: {game_pin}")
+    
+    with room_lock:
+        active_connections[sid] = {'connected_at': time.time()}
+        update_connection_activity(sid)
+        
+        if game_pin:
+            join_room(game_pin)
+            room_participants[game_pin].add(sid)
+            active_connections[sid]['game_pin'] = game_pin
+            print(f"Client {sid} joined room: {game_pin}")
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    game_pin = session.get('game_pin')
-    if game_pin:
-        leave_room(game_pin)
-        print(f"Client left room: {game_pin}")
+    """Handle socket disconnections"""
+    sid = request.sid
+    
+    with room_lock:
+        if sid in active_connections:
+            game_pin = active_connections[sid].get('game_pin')
+            if game_pin:
+                leave_room(game_pin)
+                room_participants[game_pin].discard(sid)
+                if not room_participants[game_pin]:
+                    del room_participants[game_pin]
+                print(f"Client {sid} left room: {game_pin}")
+            del active_connections[sid]
+        if sid in connection_times:
+            del connection_times[sid]
+
+@socketio.on('ping')
+def handle_ping():
+    """Handle heartbeat pings from clients"""
+    update_connection_activity(request.sid)
+    emit('pong')
 
 @socketio.on('player_join')
 def handle_player_join(data):
+    sid = request.sid
     game = Game.query.filter_by(pin=data['pin']).first()
     if not game:
         return
     
     # Join the game room
-    join_room(game.pin)
-    session['game_pin'] = game.pin
-    print(f"Player joined game room: {game.pin}")
-    
-    # Get player from session
-    player_id = session.get('player_id')
-    if not player_id:
-        print("No player_id in session")
-        return
+    with room_lock:
+        join_room(game.pin)
+        session['game_pin'] = game.pin
+        room_participants[game.pin].add(sid)
         
-    player = Player.query.get(player_id)
-    if not player or player.game_id != game.id:
-        print("Player not found or doesn't match game")
-        return
-    
-    print(f"Player {player.nickname} joined game {game.pin}")
-    
-    # Mark player as ready
-    player.is_ready = True
-    db.session.commit()
-    
-    # Notify all clients in the game room about the new player
-    emit('player_joined', {
-        'player_id': player.id,
-        'nickname': player.nickname,
-        'score': player.score,
-        'is_ready': True
-    }, room=game.pin)
-    
-    # Also emit player_ready event
-    emit('player_ready', {
-        'player_id': player.id,
-        'nickname': player.nickname
-    }, room=game.pin)
-    
-    # Check if all players are ready
-    all_players = Player.query.filter_by(game_id=game.id).all()
-    ready_players = [p for p in all_players if p.is_ready]
-    if len(ready_players) == len(all_players):
-        print(f"All players ready in game {game.pin}")
-        emit('all_players_ready', room=game.pin)
+        # Get player from session
+        player_id = session.get('player_id')
+        if not player_id:
+            print("No player_id in session")
+            return
+            
+        player = Player.query.get(player_id)
+        if not player or player.game_id != game.id:
+            print("Player not found or doesn't match game")
+            return
+        
+        # Update connection tracking
+        active_connections[sid].update({
+            'game_pin': game.pin,
+            'player_info': {
+                'id': player.id,
+                'nickname': player.nickname,
+                'score': player.score
+            }
+        })
+        update_connection_activity(sid)
+        
+        print(f"Player {player.nickname} joined game {game.pin}")
+        
+        # Handle rejoin scenario
+        is_rejoin = data.get('rejoin', False)
+        if not is_rejoin:
+            player.is_ready = True
+            db.session.commit()
+        
+        # Get current room participants
+        current_participants = [
+            active_connections[p_sid].get('player_info')
+            for p_sid in room_participants[game.pin]
+            if p_sid in active_connections
+        ]
+        
+        # Notify all clients about room participants
+        emit('room_participants_changed', {
+            'connected_players': current_participants
+        }, room=game.pin)
+        
+        # Notify about the new/rejoined player
+        emit('player_joined', {
+            'player_id': player.id,
+            'nickname': player.nickname,
+            'score': player.score,
+            'is_ready': player.is_ready,
+            'is_rejoin': is_rejoin
+        }, room=game.pin)
+        
+        if player.is_ready:
+            emit('player_ready', {
+                'player_id': player.id,
+                'nickname': player.nickname
+            }, room=game.pin)
+        
+        # Check if all players are ready
+        all_players = Player.query.filter_by(game_id=game.id).all()
+        ready_players = [p for p in all_players if p.is_ready]
+        if len(ready_players) == len(all_players):
+            print(f"All players ready in game {game.pin}")
+            emit('all_players_ready', room=game.pin)
+        
+        # Start periodic cleanup of stale connections
+        cleanup_stale_connections()
 
 @socketio.on('game_started')
 def handle_game_started(data=None):

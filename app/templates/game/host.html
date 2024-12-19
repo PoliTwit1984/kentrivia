@@ -214,12 +214,13 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-// Initialize socket with proper configuration
+// Initialize socket manager with proper configuration
 const socket = io({
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000
 });
+const socketManager = new SocketManager(socket, '{{ game.pin }}');
 
 const gamePin = '{{ game.pin }}';
 let currentQuestion = null;
@@ -229,6 +230,7 @@ let connectionStatus = document.getElementById('connectionStatus');
 let players = new Map();
 let readyPlayers = new Set();
 let answers = new Map();
+let connectedPlayers = new Set();
 
 // Connect socket when document is ready
 document.addEventListener('DOMContentLoaded', () => {
@@ -354,7 +356,12 @@ function nextQuestion() {
     answers.clear(); // Reset answers for new question
     
     fetch('{{ url_for("game.next_question", pin=game.pin) }}', {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        },
+        credentials: 'same-origin'
     })
     .then(response => response.json())
     .then(data => {
@@ -518,18 +525,61 @@ function updateReadyStatus() {
 function updatePlayerList() {
     const playerList = document.getElementById('playerList');
     playerList.innerHTML = Array.from(players.values())
-        .map(player => `
-            <div class="list-group-item d-flex justify-content-between align-items-center
-                        ${readyPlayers.has(player.player_id) ? 'player-ready' : 'player-not-ready'}">
-                <div>
-                    <i class="fas ${readyPlayers.has(player.player_id) ? 'fa-check text-success' : 'fa-clock text-warning'}"></i>
-                    <span class="ms-2">${player.nickname}</span>
+        .map(player => {
+            const isConnected = connectedPlayers.has(player.player_id);
+            const isReady = readyPlayers.has(player.player_id);
+            return `
+                <div class="list-group-item d-flex justify-content-between align-items-center
+                            ${isReady ? 'player-ready' : 'player-not-ready'}">
+                    <div>
+                        <i class="fas fa-circle ${isConnected ? 'text-success' : 'text-danger'}" 
+                           title="${isConnected ? 'Connected' : 'Disconnected'}"
+                           style="font-size: 0.7em;"></i>
+                        <i class="fas ${isReady ? 'fa-check text-success' : 'fa-clock text-warning'} ms-2"></i>
+                        <span class="ms-2">${player.nickname}</span>
+                    </div>
+                    <span class="badge bg-primary rounded-pill">${player.score || 0}</span>
                 </div>
-                <span class="badge bg-primary rounded-pill">${player.score || 0}</span>
-            </div>
-        `)
+            `;
+        })
         .join('');
 }
+
+// Handle room participant changes
+socket.on('room_participants_changed', (data) => {
+    console.log('Room participants changed:', data);
+    connectedPlayers.clear();
+    data.connected_players.forEach(player => {
+        connectedPlayers.add(player.id);
+        
+        // Update player info if needed
+        if (players.has(player.id)) {
+            const existingPlayer = players.get(player.id);
+            existingPlayer.score = player.score;
+            players.set(player.id, existingPlayer);
+        }
+    });
+    
+    // Update UI
+    updatePlayerList();
+    updateReadyStatus();
+});
+
+// Handle player reconnection
+socket.on('player_reconnected', (data) => {
+    console.log('Player reconnected:', data);
+    connectedPlayers.add(data.player_id);
+    updatePlayerList();
+    showToast(`${data.nickname} reconnected`, 'success');
+});
+
+// Handle player disconnection
+socket.on('player_disconnected', (data) => {
+    console.log('Player disconnected:', data);
+    connectedPlayers.delete(data.player_id);
+    updatePlayerList();
+    showToast(`${data.nickname} disconnected`, 'warning');
+});
 
 function endGame() {
     if (!confirm('Are you sure you want to end the game?')) {

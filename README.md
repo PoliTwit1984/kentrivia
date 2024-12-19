@@ -8,6 +8,7 @@ A real-time multiplayer trivia game platform inspired by Kahoot!, built with Fla
   - Host account creation and login
   - Quick player join with game PIN
   - No account required for players
+  - Comprehensive authentication and CSRF protection
 
 - **Game Session Management**
   - Create custom trivia games
@@ -16,8 +17,13 @@ A real-time multiplayer trivia game platform inspired by Kahoot!, built with Fla
   - Player ready status tracking
   - Flexible game start control
   - Late-join support for ongoing games
-  - Reliable WebSocket connections with auto-reconnect
-  - Connection status indicators
+  - Enhanced WebSocket Connection Reliability:
+    - Heartbeat mechanism for connection monitoring
+    - Automatic reconnection with exponential backoff
+    - Connection state tracking and synchronization
+    - Room presence verification
+    - Stale connection cleanup
+    - Visual connection status indicators
 
 - **Question Management**
   - Create custom questions
@@ -34,6 +40,7 @@ A real-time multiplayer trivia game platform inspired by Kahoot!, built with Fla
   - Connection status monitoring
   - Automatic reconnection handling
   - Join ongoing games at any time
+  - State synchronization after reconnection
 
 ## Installation
 
@@ -85,6 +92,7 @@ The application will be available at `http://127.0.0.1:5001`.
 5. Start the game when ready
 6. Control the game flow and monitor progress
 7. Monitor player connections and game status
+8. Track player connection status in real-time
 
 ### For Players
 
@@ -95,6 +103,7 @@ The application will be available at `http://127.0.0.1:5001`.
 5. Keep your streak going for bonus points
 6. Check the leaderboard between questions
 7. Monitor your connection status
+8. Automatically reconnect if disconnected
 
 ## Project Structure
 
@@ -123,6 +132,7 @@ kentrivia/
 - **Real-time Communication**: Flask-SocketIO with reliable connection handling
 - **Frontend**: Bootstrap 5, JavaScript
 - **External APIs**: Open Trivia Database (OpenTDB)
+- **Security**: Flask-WTF, CSRF Protection
 
 ## Contributing
 
@@ -139,22 +149,25 @@ See [tasks.md](tasks.md) for a list of planned features and improvements.
 ### Common Issues
 
 1. **Questions not displaying**: If players don't see questions:
-   - Ensure you have a stable internet connection
-   - Check the connection status indicator
-   - Try refreshing the page
-   - You can rejoin at any time during the game
+   - Check the connection status indicator in the game interface
+   - The system will automatically attempt to reconnect and sync game state
+   - You can safely rejoin at any time - the game will restore your current state
+   - If issues persist, try refreshing the page
 
 2. **Connection Issues**:
-   - Check your internet connection
-   - The system will attempt to reconnect automatically
-   - Monitor the connection status indicator
-   - Refresh the page if connection issues persist
+   - Monitor the connection status indicator for real-time connection health
+   - The system uses a heartbeat mechanism to detect connection problems
+   - Automatic reconnection will occur with exponential backoff
+   - Game state is preserved and synchronized after reconnection
+   - Host can see connection status of all players
+   - Stale connections are automatically cleaned up
 
 3. **Game Start Issues**:
    - Host can start the game at any time
    - Players can join before or during gameplay
    - Check that host has proper permissions
    - Verify stable connection for all participants
+   - System will automatically handle player reconnections
 
 ## License
 

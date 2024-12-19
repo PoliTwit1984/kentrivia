@@ -192,12 +192,13 @@
 
 {% block extra_js %}
 <script>
-// Initialize socket with proper configuration
+// Initialize socket manager with proper configuration
 const socket = io({
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000
 });
+const socketManager = new SocketManager(socket, '{{ game.pin }}');
 
 const gamePin = '{{ game.pin }}';
 const playerId = {{ player.id }};
@@ -206,6 +207,11 @@ let answerSubmitted = false;
 let timer = null;
 let startTime = null;
 let connectionStatus = document.getElementById('connectionStatus');
+let gameState = {
+    currentQuestionId: null,
+    timeRemaining: null,
+    hasSubmittedAnswer: false
+};
 
 // Connect socket when document is ready
 document.addEventListener('DOMContentLoaded', () => {
@@ -227,7 +233,14 @@ function hideConnectionStatus() {
 // Connect to the game room
 socket.on('connect', () => {
     console.log('Socket connected, joining game room:', gamePin);
-    socket.emit('player_join', { pin: gamePin });
+    socket.emit('player_join', { 
+        pin: gamePin,
+        rejoin: socketManager.reconnectAttempts > 0,
+        state: {
+            currentQuestionId: gameState.currentQuestionId,
+            hasSubmittedAnswer: gameState.hasSubmittedAnswer
+        }
+    });
     showConnectionStatus('Connected to game server', false);
     setTimeout(hideConnectionStatus, 1000);
 });
@@ -236,6 +249,10 @@ socket.on('connect', () => {
 socket.on('disconnect', () => {
     console.log('Socket disconnected');
     showConnectionStatus('Lost connection to server. Attempting to reconnect...', true);
+    if (timer) {
+        clearInterval(timer);
+        timer = null;
+    }
 });
 
 // Handle socket error
@@ -248,6 +265,26 @@ socket.on('error', (error) => {
 socket.on('connect_error', (error) => {
     console.error('Socket connect error:', error);
     showConnectionStatus('Failed to connect to server', true);
+});
+
+// Handle game state sync
+socket.on('game_state_sync', (data) => {
+    console.log('Game state sync received:', data);
+    if (data.currentQuestion && !gameState.hasSubmittedAnswer) {
+        const elapsedTime = (Date.now() - new Date(data.questionStartedAt).getTime()) / 1000;
+        const remainingTime = data.currentQuestion.time_limit - elapsedTime;
+        
+        if (remainingTime > 0) {
+            showQuestion(data.currentQuestion, remainingTime);
+        }
+    }
+});
+
+// Handle force reconnect
+socket.on('force_reconnect', () => {
+    console.log('Force reconnect requested');
+    socket.disconnect();
+    setTimeout(() => socket.connect(), 1000);
 });
 
 // Handle all players ready
@@ -330,8 +367,9 @@ function showQuestion(question) {
 }
 
 function submitAnswer(answer) {
-    if (answerSubmitted) return;
+    if (answerSubmitted || gameState.hasSubmittedAnswer) return;
     answerSubmitted = true;
+    gameState.hasSubmittedAnswer = true;
     
     const responseTime = (Date.now() - startTime) / 1000;
     console.log('Submitting answer:', answer, 'Response time:', responseTime);
@@ -351,6 +389,63 @@ function submitAnswer(answer) {
         answer: answer,
         response_time: responseTime
     });
+}
+
+function startTimer(duration, remainingTime = null) {
+    let timeLeft = remainingTime || duration;
+    const progressBar = document.getElementById('timeProgress');
+    
+    if (timer) clearInterval(timer);
+    
+    const updateProgress = () => {
+        const percentage = (timeLeft / duration) * 100;
+        progressBar.style.width = `${percentage}%`;
+        
+        if (timeLeft <= 0) {
+            clearInterval(timer);
+            if (!gameState.hasSubmittedAnswer) {
+                submitAnswer(''); // Submit empty answer if time runs out
+            }
+            return;
+        }
+        timeLeft--;
+    };
+    
+    updateProgress();
+    timer = setInterval(updateProgress, 1000);
+}
+
+function showAnswerResult(data) {
+    console.log('Showing answer result:', data);
+    
+    // Update game state
+    gameState.hasSubmittedAnswer = true;
+    
+    // Update player stats
+    document.getElementById('playerScore').textContent = data.new_score;
+    document.getElementById('playerStreak').textContent = data.new_streak;
+    
+    // Show appropriate result screen
+    const correctResult = document.getElementById('correctResult');
+    const incorrectResult = document.getElementById('incorrectResult');
+    
+    if (data.is_correct) {
+        correctResult.style.display = 'block';
+        incorrectResult.style.display = 'none';
+        document.getElementById('pointsEarned').textContent = `+${data.points_awarded}`;
+        if (data.new_streak > 1) {
+            document.querySelector('.streak-info').style.display = 'block';
+            document.getElementById('newStreak').textContent = data.new_streak;
+        }
+    } else {
+        correctResult.style.display = 'none';
+        incorrectResult.style.display = 'block';
+        document.getElementById('correctAnswer').textContent = data.correct_answer;
+    }
+    
+    // Show result screen
+    document.getElementById('questionScreen').style.display = 'none';
+    document.getElementById('resultScreen').style.display = 'block';
 }
 
 // Rest of the functions remain the same...

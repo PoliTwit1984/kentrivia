@@ -108,39 +108,93 @@ class CountdownTimer {
 
 // WebSocket Connection Manager
 class SocketManager {
-    constructor(socket) {
+    constructor(socket, gamePin = null) {
         this.socket = socket;
+        this.gamePin = gamePin;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
+        this.heartbeatInterval = null;
+        this.lastHeartbeat = Date.now();
         this.setupListeners();
+        this.startHeartbeat();
     }
     
     setupListeners() {
         this.socket.on('connect', () => {
             this.reconnectAttempts = 0;
             showToast('Connected to server', 'success');
+            
+            // Rejoin game room if we have a pin
+            if (this.gamePin) {
+                this.socket.emit('player_join', { 
+                    pin: this.gamePin,
+                    rejoin: true 
+                });
+            }
         });
         
         this.socket.on('disconnect', () => {
             showToast('Lost connection to server', 'warning');
+            this.stopHeartbeat();
             this.attemptReconnect();
         });
         
         this.socket.on('connect_error', () => {
+            this.stopHeartbeat();
             this.attemptReconnect();
         });
+
+        this.socket.on('pong', () => {
+            this.lastHeartbeat = Date.now();
+        });
+
+        // Handle forced reconnection request from server
+        this.socket.on('force_reconnect', () => {
+            this.socket.disconnect();
+            setTimeout(() => this.socket.connect(), 1000);
+        });
+    }
+    
+    startHeartbeat() {
+        this.heartbeatInterval = setInterval(() => {
+            if (this.socket.connected) {
+                this.socket.emit('ping');
+                
+                // Check if we missed too many heartbeats
+                if (Date.now() - this.lastHeartbeat > 10000) {
+                    console.log('Missed heartbeats, reconnecting...');
+                    this.socket.disconnect();
+                    this.socket.connect();
+                }
+            }
+        }, 5000);
+    }
+    
+    stopHeartbeat() {
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
+        }
     }
     
     attemptReconnect() {
         if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            showToast('Unable to connect to server', 'danger');
+            showToast('Unable to connect to server. Please refresh the page.', 'danger');
             return;
         }
         
         this.reconnectAttempts++;
+        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 10000);
+        
         setTimeout(() => {
-            this.socket.connect();
-        }, 1000 * Math.min(this.reconnectAttempts, 5));
+            if (!this.socket.connected) {
+                this.socket.connect();
+            }
+        }, delay);
+    }
+
+    setGamePin(pin) {
+        this.gamePin = pin;
     }
 }
 

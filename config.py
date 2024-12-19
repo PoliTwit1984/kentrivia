@@ -8,6 +8,11 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///kentrivia.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
+    # CSRF Protection
+    WTF_CSRF_ENABLED = True
+    WTF_CSRF_CHECK_DEFAULT = True
+    WTF_CSRF_TIME_LIMIT = None  # Tokens don't expire
+    
     # OpenTDB API Configuration
     OPENTDB_BASE_URL = 'https://opentdb.com/api.php'
     

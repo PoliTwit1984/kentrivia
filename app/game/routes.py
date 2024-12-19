@@ -2,7 +2,7 @@ from flask import render_template, redirect, url_for, flash, request, jsonify, s
 from flask_login import login_required, current_user
 from flask_socketio import emit
 import requests
-from app import db, socketio
+from app import db, socketio, csrf
 from app.game import bp
 from app.game.forms import CreateGameForm, CreateQuestionForm, ImportQuestionsForm
 from app.models import Game, Question, Player, Answer
@@ -211,6 +211,7 @@ def host(pin):
 
 @bp.route('/api/game/<pin>/next-question', methods=['POST'])
 @login_required
+@csrf.exempt
 def next_question(pin):
     game = Game.query.filter_by(pin=pin).first_or_404()
     
@@ -252,6 +253,7 @@ def next_question(pin):
 
 @bp.route('/api/game/<pin>/start', methods=['POST'])
 @login_required
+@csrf.exempt
 def start_game(pin):
     game = Game.query.filter_by(pin=pin).first_or_404()
     
@@ -286,6 +288,7 @@ def start_game(pin):
 
 @bp.route('/api/game/<pin>/end', methods=['POST'])
 @login_required
+@csrf.exempt
 def end_game(pin):
     game = Game.query.filter_by(pin=pin).first_or_404()
     
@@ -300,6 +303,7 @@ def end_game(pin):
 
 @bp.route('/api/question/<int:question_id>', methods=['DELETE'])
 @login_required
+@csrf.exempt
 def delete_question(question_id):
     question = Question.query.get_or_404(question_id)
     game = Game.query.get(question.game_id)
