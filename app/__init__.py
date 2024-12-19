@@ -5,6 +5,9 @@ from flask_socketio import SocketIO
 from flask_wtf.csrf import CSRFProtect
 from config import Config
 import json
+import logging
+from logging.handlers import RotatingFileHandler
+import os
 
 db = SQLAlchemy()
 login_manager = LoginManager()
@@ -14,6 +17,19 @@ csrf = CSRFProtect()
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+
+    # Set up logging
+    if not os.path.exists('logs'):
+        os.mkdir('logs')
+    
+    file_handler = RotatingFileHandler('logs/app.log', maxBytes=10240, backupCount=10)
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+    ))
+    file_handler.setLevel(logging.INFO)
+    app.logger.addHandler(file_handler)
+    app.logger.setLevel(logging.INFO)
+    app.logger.info('KenTrivia startup')
 
     db.init_app(app)
     login_manager.init_app(app)

@@ -29,18 +29,16 @@
    - Added game state synchronization after reconnection
    - Updated URL handling in WebSocket events to use url_for()
    - Added game deletion functionality for hosts/moderators
+   - Fixed WebSocket connection issues by enforcing WebSocket transport
 
 # Known Issues
 
-1. Game Start Issues [ESSENTIAL]
-   - Players not receiving game start event from host
-   - Potential areas to investigate:
-     - Socket room membership verification
-     - Event propagation in WebSocket handlers
-     - Client-side event handling in lobby.html
-     - Browser console monitoring for event receipt
-     - Socket connection state during game start
-     - Race conditions in game state updates
+1. Game Start Issues [RESOLVED]
+   - Fixed issue with players not receiving game start event from host
+   - Resolution:
+     - Enforced WebSocket transport to prevent transport upgrades
+     - Disabled polling fallback to ensure consistent connection
+     - Added proper timeout and reconnection settings
 
 # Tasks Remaining
 
