@@ -5,9 +5,60 @@ import requests
 from app import db, socketio, csrf
 from app.game import bp
 from app.game.forms import CreateGameForm, CreateQuestionForm, ImportQuestionsForm
+import json
+
+# Test game configuration
+TEST_GAME_CONFIG = {
+    'title': 'Test Mode',
+    'question': {
+        'content': 'This is a test question with a long timer. Click any answer to test connectivity.',
+        'correct_answer': 'Answer A',
+        'incorrect_answers': ['Answer B', 'Answer C', 'Answer D'],
+        'category': 'Test',
+        'difficulty': 'easy',
+        'time_limit': 300,
+        'points': 0
+    }
+}
+
 from app.models import Game, Question, Player, Answer
 from datetime import datetime
 import json
+
+@bp.route('/create_test')
+@login_required
+def create_test():
+    # Create a new test game
+    game = Game(
+        title=TEST_GAME_CONFIG['title'],
+        host_id=current_user.id,
+        pin=Game.generate_pin()
+    )
+    db.session.add(game)
+    db.session.commit()
+
+    # Add the test question
+    q = TEST_GAME_CONFIG['question']
+    question = Question(
+        game_id=game.id,
+        content=q['content'],
+        correct_answer=q['correct_answer'],
+        incorrect_answers=json.dumps(q['incorrect_answers']),
+        category=q['category'],
+        difficulty=q['difficulty'],
+        time_limit=q['time_limit'],
+        points=q['points'],
+        source='test'  # Mark as test question
+    )
+    db.session.add(question)
+    db.session.commit()
+
+    # Initialize game state after question is added
+    game.current_question_index = -1  # Will be incremented to 0 when first question starts
+    db.session.commit()
+
+    flash('Test game created successfully!', 'success')
+    return redirect(url_for('game.host', pin=game.pin))
 
 @bp.route('/dashboard')
 @login_required
@@ -220,10 +271,14 @@ def next_question(pin):
     
     # Get next question
     next_index = game.current_question_index + 1
-    question = Question.query.filter_by(game_id=game.id)\
-        .order_by(Question.id)\
-        .offset(next_index)\
-        .first()
+    if game.title == TEST_GAME_CONFIG['title']:
+        # For test games, always get the first question
+        question = Question.query.filter_by(game_id=game.id).first()
+    else:
+        question = Question.query.filter_by(game_id=game.id)\
+            .order_by(Question.id)\
+            .offset(next_index)\
+            .first()
     
     if not question:
         return jsonify({'message': 'No more questions'})
@@ -274,6 +329,13 @@ def start_game(pin):
     game.started_at = datetime.utcnow()
     game.current_question_index = -1  # Will be incremented to 0 when first question starts
     db.session.commit()
+
+    # For test games, mark the question as ready
+    if game.title == TEST_GAME_CONFIG['title']:
+        question = Question.query.filter_by(game_id=game.id).first()
+        if question:
+            game.current_question_index = -1  # Will be incremented to 0 when first question starts
+            db.session.commit()
     
     # Emit game_started event to the game room
     socketio.emit('game_started', {
@@ -297,6 +359,24 @@ def end_game(pin):
     
     game.ended_at = datetime.utcnow()
     game.is_active = False
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+@bp.route('/api/game/<int:game_id>', methods=['DELETE'])
+@login_required
+@csrf.exempt
+def delete_game(game_id):
+    game = Game.query.get_or_404(game_id)
+    
+    if game.host_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    # Delete associated questions and players
+    Question.query.filter_by(game_id=game_id).delete()
+    Player.query.filter_by(game_id=game_id).delete()
+    
+    db.session.delete(game)
     db.session.commit()
     
     return jsonify({'success': True})

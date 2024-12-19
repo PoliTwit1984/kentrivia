@@ -17,6 +17,7 @@ A real-time multiplayer trivia game platform inspired by Kahoot!, built with Fla
   - Player ready status tracking
   - Flexible game start control
   - Late-join support for ongoing games
+  - Game deletion for hosts/moderators
   - Enhanced WebSocket Connection Reliability:
     - Heartbeat mechanism for connection monitoring
     - Automatic reconnection with exponential backoff
@@ -41,6 +42,13 @@ A real-time multiplayer trivia game platform inspired by Kahoot!, built with Fla
   - Automatic reconnection handling
   - Join ongoing games at any time
   - State synchronization after reconnection
+
+## Known Issues
+
+1. Game Start Synchronization
+   - Currently investigating an issue where players may not receive the game start event from the host
+   - Temporary workaround: Players can refresh the page after the host starts the game
+   - Active development is ongoing to resolve this synchronization issue
 
 ## Installation
 
@@ -105,6 +113,8 @@ The application will be available at `http://127.0.0.1:5001`.
 7. Monitor your connection status
 8. Automatically reconnect if disconnected
 
+Note: If you don't see the game start after the host begins, try refreshing the page.
+
 ## Project Structure
 
 ```
@@ -142,32 +152,7 @@ kentrivia/
 4. Push to the branch
 5. Create a Pull Request
 
-See [tasks.md](tasks.md) for a list of planned features and improvements.
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Questions not displaying**: If players don't see questions:
-   - Check the connection status indicator in the game interface
-   - The system will automatically attempt to reconnect and sync game state
-   - You can safely rejoin at any time - the game will restore your current state
-   - If issues persist, try refreshing the page
-
-2. **Connection Issues**:
-   - Monitor the connection status indicator for real-time connection health
-   - The system uses a heartbeat mechanism to detect connection problems
-   - Automatic reconnection will occur with exponential backoff
-   - Game state is preserved and synchronized after reconnection
-   - Host can see connection status of all players
-   - Stale connections are automatically cleaned up
-
-3. **Game Start Issues**:
-   - Host can start the game at any time
-   - Players can join before or during gameplay
-   - Check that host has proper permissions
-   - Verify stable connection for all participants
-   - System will automatically handle player reconnections
+See [tasks.md](tasks.md) for a list of planned features, improvements, and known issues.
 
 ## License
 

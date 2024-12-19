@@ -24,129 +24,121 @@
    - Fixed game start and question synchronization
    - Added proper error handling for WebSocket events
    - Added player ready status tracking
-   - Fixed game start flow and redirects
    - Improved question display synchronization
    - Added late join functionality for ongoing games
    - Added game state synchronization after reconnection
+   - Updated URL handling in WebSocket events to use url_for()
+   - Added game deletion functionality for hosts/moderators
 
-3. Database Models
-   - User model for host accounts
-   - Game model for trivia sessions
-   - Question model for trivia questions
-   - Player model for game participants
-   - Answer model for tracking responses
-   - Added player ready status tracking
+# Known Issues
 
-4. Templates and UI
-   - Created responsive layouts with Bootstrap
-   - Implemented real-time updates with Socket.IO
-   - Added game host interface
-   - Added player interface
-   - Created lobby system
-   - Added connection status indicators
-   - Improved error feedback
-   - Added player ready status indicators
-   - Improved game start flow UI
-   - Updated UI to support late joining
+1. Game Start Issues [ESSENTIAL]
+   - Players not receiving game start event from host
+   - Potential areas to investigate:
+     - Socket room membership verification
+     - Event propagation in WebSocket handlers
+     - Client-side event handling in lobby.html
+     - Browser console monitoring for event receipt
+     - Socket connection state during game start
+     - Race conditions in game state updates
 
 # Tasks Remaining
 
 1. Game Flow Improvements
-   - Add game pause/resume functionality
-   - Add ability to skip questions
-   - Add player kick/ban functionality
-   - Add game results export
-   - Add game replay functionality
-   - Add game state persistence for long-term recovery
-   - Add game session analytics and metrics
-   - Add host controls for managing game flow during connection issues
-   - Add spectator mode for non-participating viewers
+   - Add game pause/resume functionality [MEDIUM]
+   - Add ability to skip questions [LOW]
+   - Add player kick/ban functionality [MEDIUM]
+   - Add game results export [LOW]
+   - Add game replay functionality [LOW]
+   - Add game state persistence for long-term recovery [MEDIUM]
+   - Add game session analytics and metrics [LOW]
+   - Add host controls for managing game flow during connection issues [ESSENTIAL]
+   - Add spectator mode for non-participating viewers [LOW]
 
 2. Question Management
-   - Add bulk question import/export
-   - Add question categories management
-   - Add question difficulty balancing
-   - Add question review system
-   - Add question statistics tracking
+   - Add bulk question import/export [LOW]
+   - Add question categories management [MEDIUM]
+   - Add question difficulty balancing [LOW]
+   - Add question review system [LOW]
+   - Add question statistics tracking [LOW]
 
 3. Player Experience
-   - Add player avatars
-   - Add player achievements
-   - Add player statistics
-   - Add player history
-   - Add social features (friend lists, private games)
-   - Add player connection quality indicators
-   - Add player connection history tracking
-   - Add player device/browser compatibility checks
-   - Add player score adjustment for late joins
+   - Add player avatars [LOW]
+   - Add player achievements [LOW]
+   - Add player statistics [MEDIUM]
+   - Add player history [LOW]
+   - Add social features (friend lists, private games) [LOW]
+   - Add player connection quality indicators [ESSENTIAL]
+   - Add player connection history tracking [MEDIUM]
+   - Add player device/browser compatibility checks [MEDIUM]
+   - Add player score adjustment for late joins [MEDIUM]
 
 4. Host Features
-   - Add game templates
-   - Add custom game settings
-   - Add question bank management
-   - Add player moderation tools
-   - Add game analytics dashboard
-   - Add host controls for managing disconnected players
-   - Add controls for late-joining players
+   - Add game templates [LOW]
+   - Add custom game settings [MEDIUM]
+   - Add question bank management [MEDIUM]
+   - Add player moderation tools [ESSENTIAL]
+   - Add game analytics dashboard [LOW]
+   - Add host controls for managing disconnected players [ESSENTIAL]
+   - Add controls for late-joining players [MEDIUM]
 
 5. UI/UX Improvements
-   - Add animations for game events
-   - Add sound effects
-   - Add theme customization
-   - Improve mobile responsiveness
-   - Add loading states and transitions
-   - Add better visual feedback for game state
-   - Add late-join notifications
+   - Add animations for game events [LOW]
+   - Add sound effects [LOW]
+   - Add theme customization [LOW]
+   - Improve mobile responsiveness [ESSENTIAL]
+   - Add loading states and transitions [MEDIUM]
+   - Add better visual feedback for game state [ESSENTIAL]
+   - Add late-join notifications [MEDIUM]
 
 6. Testing
-   - Add unit tests
-   - Add integration tests
-   - Add end-to-end tests
-   - Add load testing
-   - Add performance testing
-   - Add comprehensive WebSocket testing:
+   - Add unit tests [ESSENTIAL]
+   - Add integration tests [ESSENTIAL]
+   - Add end-to-end tests [MEDIUM]
+   - Add load testing [MEDIUM]
+   - Add performance testing [MEDIUM]
+   - Add comprehensive WebSocket testing [ESSENTIAL]:
      - Connection reliability testing
      - Reconnection scenario testing
      - State synchronization testing
      - Room presence verification testing
      - Heartbeat mechanism testing
      - Stale connection cleanup testing
-   - Add game flow testing
-   - Add late-join scenario testing
-   - Add connection stress testing
-   - Add network condition simulation tests
+   - Add game flow testing [ESSENTIAL]
+   - Add late-join scenario testing [MEDIUM]
+   - Add connection stress testing [MEDIUM]
+   - Add network condition simulation tests [MEDIUM]
 
 7. Documentation
-   - Add API documentation
-   - Add deployment guide
-   - Add contribution guidelines
-   - Add user manual
-   - Add developer documentation
-   - Add troubleshooting guide
+   - Add API documentation [MEDIUM]
+   - Add deployment guide [ESSENTIAL]
+   - Add contribution guidelines [LOW]
+   - Add user manual [ESSENTIAL]
+   - Add developer documentation [MEDIUM]
+   - Add troubleshooting guide [ESSENTIAL]
 
 8. Security
-   - Add rate limiting
-   - Add input validation
-   - Add XSS protection
-   - Add CSRF protection
-   - Add session security
-   - Add WebSocket authentication
-   - Add game access control
+   - Add rate limiting [ESSENTIAL]
+   - Add input validation [ESSENTIAL]
+   - Add XSS protection [ESSENTIAL]
+   - Add session security [ESSENTIAL]
+   - Add WebSocket authentication [ESSENTIAL]
+   - Add game access control [ESSENTIAL]
 
 9. Performance
-   - Add caching
-   - Optimize database queries
-   - Add database indexing
-   - Add load balancing support
-   - Add CDN support
-   - Optimize WebSocket message handling
-   - Add connection pooling
+   - Add caching [MEDIUM]
+   - Optimize database queries [ESSENTIAL]
+   - Add database indexing [ESSENTIAL]
+   - Add load balancing support [MEDIUM]
+   - Add CDN support [LOW]
+   - Optimize WebSocket message handling [ESSENTIAL]
+   - Add connection pooling [MEDIUM]
 
 10. Deployment
-    - Add Docker support
-    - Add CI/CD pipeline
-    - Add monitoring
-    - Add logging
-    - Add backup system
-    - Add health checks
-    - Add automated scaling
+    - Add Docker support [MEDIUM]
+    - Add CI/CD pipeline [MEDIUM]
+    - Add monitoring [ESSENTIAL]
+    - Add logging [ESSENTIAL]
+    - Add backup system [ESSENTIAL]
+    - Add health checks [ESSENTIAL]
+    - Add automated scaling [MEDIUM]
