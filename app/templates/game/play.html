@@ -296,6 +296,16 @@ socket.on('all_players_ready', () => {
     showToast('All players ready - game starting soon!', 'success');
 });
 
+// Handle question preparation
+socket.on('question_preparing', () => {
+    console.log('Question is being prepared...');
+    document.getElementById('waitingScreen').querySelector('h3').textContent = 'Next question coming up...';
+    document.getElementById('waitingScreen').style.display = 'block';
+    document.getElementById('questionScreen').style.display = 'none';
+    document.getElementById('resultScreen').style.display = 'none';
+    document.getElementById('leaderboardScreen').style.display = 'none';
+});
+
 // Handle new question
 socket.on('question_started', (data) => {
     console.log('Received question_started event:', data);
@@ -309,6 +319,11 @@ socket.on('question_started', (data) => {
         console.log('Question displayed successfully');
     } catch (error) {
         console.error('Error showing question:', error);
+        // Try to recover by showing waiting screen
+        document.getElementById('waitingScreen').style.display = 'block';
+        document.getElementById('questionScreen').style.display = 'none';
+        document.getElementById('resultScreen').style.display = 'none';
+        document.getElementById('leaderboardScreen').style.display = 'none';
     }
 });
 

@@ -267,7 +267,11 @@ function hideConnectionStatus() {
 // Connect to the game room
 socket.on('connect', () => {
     console.log('Socket connected, joining game room:', gamePin);
-    socket.emit('player_join', { pin: gamePin });
+    socket.emit('player_join', { 
+        pin: gamePin,
+        is_host: true,
+        host_id: {{ current_user.id }}
+    });
     showConnectionStatus('Connected to game server', false);
     setTimeout(hideConnectionStatus, 2000);
 });
@@ -358,6 +362,9 @@ function nextQuestion() {
     console.log('Requesting next question...');
     answers.clear(); // Reset answers for new question
     
+    // First notify players that next question is coming
+    socket.emit('preparing_next_question', { pin: gamePin });
+    
     fetch('{{ url_for("game.next_question", pin=game.pin) }}', {
         method: 'POST',
         headers: {
@@ -383,8 +390,11 @@ function nextQuestion() {
 }
 
 function showQuestion(question) {
-    console.log('Showing question:', question);
+    console.log('Host showing question:', question);
     currentQuestion = question;
+    
+    // Log room participants before showing question
+    console.log('Current room participants:', connectedPlayers);
     
     // Update UI
     document.getElementById('questionText').textContent = question.content;

@@ -113,6 +113,21 @@ def handle_player_join(data):
     if not game:
         current_app.logger.error(f"Game not found for PIN: {data['pin']}")
         return
+
+    # Handle host connection
+    if data.get('is_host'):
+        current_app.logger.info(f"Host joining game {game.pin}")
+        with room_lock:
+            join_room(game.pin)
+            session['game_pin'] = game.pin
+            room_participants[game.pin].add(sid)
+            active_connections[sid].update({
+                'game_pin': game.pin,
+                'is_host': True,
+                'host_id': data.get('host_id')
+            })
+            update_connection_activity(sid)
+        return
     
     # Join the game room
     with room_lock:
@@ -186,6 +201,17 @@ def handle_player_join(data):
         
         # Start periodic cleanup of stale connections
         cleanup_stale_connections()
+
+@socketio.on('preparing_next_question')
+def handle_preparing_next_question(data):
+    game_pin = data.get('pin')
+    if not game_pin:
+        current_app.logger.error("No game pin provided for preparing_next_question")
+        return
+    
+    current_app.logger.info(f"Host is preparing next question for game {game_pin}")
+    # Notify players to prepare for next question
+    emit('question_preparing', room=game_pin)
 
 @socketio.on('game_started')
 def handle_game_started(data=None):
