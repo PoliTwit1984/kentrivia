@@ -298,9 +298,18 @@ socket.on('all_players_ready', () => {
 
 // Handle new question
 socket.on('question_started', (data) => {
-    console.log('Received question:', data);
+    console.log('Received question_started event:', data);
+    if (!data || !data.content) {
+        console.error('Invalid question data received:', data);
+        return;
+    }
     hideConnectionStatus();
-    showQuestion(data);
+    try {
+        showQuestion(data);
+        console.log('Question displayed successfully');
+    } catch (error) {
+        console.error('Error showing question:', error);
+    }
 });
 
 // Handle answer result
@@ -328,45 +337,74 @@ socket.on('game_ended', (data) => {
 });
 
 function showQuestion(question) {
-    console.log('Showing question:', question);
+    console.log('Starting showQuestion with:', question);
     currentQuestion = question;
     answerSubmitted = false;
     startTime = Date.now();
+    gameState.currentQuestionId = question.question_id;
+    gameState.hasSubmittedAnswer = false;
     
-    // Update question text
-    document.getElementById('questionText').textContent = question.content;
+    try {
+        // Update question text
+        const questionText = document.getElementById('questionText');
+        if (!questionText) {
+            console.error('Question text element not found');
+            return;
+        }
+        questionText.textContent = question.content;
     
-    // Create answer options
-    const optionsContainer = document.getElementById('answerOptions');
-    optionsContainer.innerHTML = '';
+        // Create answer options
+        const optionsContainer = document.getElementById('answerOptions');
+        if (!optionsContainer) {
+            console.error('Answer options container not found');
+            return;
+        }
+        optionsContainer.innerHTML = '';
+        
+        console.log('Creating answer options with:', question.answers);
+        
+        // Shuffle answers for randomization
+        const answers = [...question.answers];
+        for (let i = answers.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [answers[i], answers[j]] = [answers[j], answers[i]];
+        }
     
-    // Shuffle answers for randomization
-    const answers = [...question.answers];
-    for (let i = answers.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [answers[i], answers[j]] = [answers[j], answers[i]];
-    }
-    
-    answers.forEach((answer, index) => {
-        const col = document.createElement('div');
-        col.className = 'col';
-        col.innerHTML = `
-            <div class="answer-option card" onclick="submitAnswer('${answer}')">
-                <div class="card-body">
-                    <h5 class="card-title">${answer}</h5>
+        answers.forEach((answer, index) => {
+            const col = document.createElement('div');
+            col.className = 'col';
+            // Escape answer text to prevent XSS and handle special characters
+            const escapedAnswer = answer.replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[char]);
+            
+            col.innerHTML = `
+                <div class="answer-option card" onclick="submitAnswer('${escapedAnswer}')">
+                    <div class="card-body">
+                        <h5 class="card-title">${escapedAnswer}</h5>
+                    </div>
                 </div>
-            </div>
-        `;
-        optionsContainer.appendChild(col);
-    });
+            `;
+            optionsContainer.appendChild(col);
+        });
     
-    // Show question screen and start timer
-    document.getElementById('waitingScreen').style.display = 'none';
-    document.getElementById('resultScreen').style.display = 'none';
-    document.getElementById('leaderboardScreen').style.display = 'none';
-    document.getElementById('questionScreen').style.display = 'block';
-    
-    startTimer(question.time_limit);
+        // Show question screen and start timer
+        document.getElementById('waitingScreen').style.display = 'none';
+        document.getElementById('resultScreen').style.display = 'none';
+        document.getElementById('leaderboardScreen').style.display = 'none';
+        document.getElementById('questionScreen').style.display = 'block';
+        
+        console.log('Starting timer with duration:', question.time_limit);
+        startTimer(question.time_limit);
+        
+        console.log('Question display complete');
+    } catch (error) {
+        console.error('Error in showQuestion:', error);
+    }
 }
 
 function submitAnswer(answer) {
