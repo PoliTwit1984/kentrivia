@@ -1,4 +1,4 @@
-from flask import session, request
+from flask import session, request, url_for
 from flask_socketio import emit, join_room, leave_room, disconnect
 from app import socketio, db
 from app.models import Game, Player, Question, Answer
@@ -192,9 +192,19 @@ def handle_game_started(data=None):
     if not game_pin:
         return
     
+    game = Game.query.filter_by(pin=game_pin).first()
+    if not game:
+        return
+
     print(f"Broadcasting game_started to room: {game_pin}")
-    # Emit to specific game room without broadcast
-    emit('game_started', room=game_pin)
+    # Emit to specific game room with start data
+    emit('game_started', {
+        'started_at': game.started_at.isoformat() if game.started_at else None,
+        'redirect': {
+            'host': url_for('game.host', pin=game_pin),
+            'player': url_for('game.play', pin=game_pin)
+        }
+    }, room=game_pin, include_self=True)
 
 @socketio.on('submit_answer')
 def handle_submit_answer(data):

@@ -44,7 +44,7 @@ class CreateQuestionForm(FlaskForm):
     )
     time_limit = IntegerField('Time Limit (seconds)', validators=[
         Optional(),
-        NumberRange(min=5, max=60, message='Time limit must be between 5 and 60 seconds')
+        NumberRange(min=5, max=300, message='Time limit must be between 5 and 300 seconds')
     ], default=20)
     points = IntegerField('Points', validators=[
         Optional(),
