@@ -194,9 +194,12 @@
 <script>
 // Initialize socket manager with proper configuration
 const socket = io({
+    transports: ['websocket'],
+    upgrade: false,
     reconnection: true,
     reconnectionAttempts: 5,
-    reconnectionDelay: 1000
+    reconnectionDelay: 1000,
+    timeout: 60000
 });
 const socketManager = new SocketManager(socket, '{{ game.pin }}');
 
