@@ -153,24 +153,54 @@ function deleteGame(gameId) {
         return;
     }
     
-    fetch(`/api/game/${gameId}`, {
+    fetch(`{{ url_for("game.delete_game", game_id=0) }}`.replace('0', gameId), {
         method: 'DELETE',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
         }
     })
     .then(response => {
         if (!response.ok) {
-            throw new Error('Failed to delete game');
+            return response.json().then(data => {
+                throw new Error(data.error || 'Failed to delete game');
+            });
         }
         return response.json();
     })
     .then(data => {
-        // Reload the page to show updated game list
-        window.location.reload();
+        showToast('Game deleted successfully', 'success');
+        // Reload the page after a short delay to show the toast
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
     })
     .catch(error => {
-        alert('Error deleting game: ' + error.message);
+        console.error('Error:', error);
+        showToast(error.message || 'Failed to delete game', 'danger');
+    });
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type} border-0 position-fixed bottom-0 end-0 m-3`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    
+    document.body.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+    
+    toast.addEventListener('hidden.bs.toast', () => {
+        document.body.removeChild(toast);
     });
 }
 

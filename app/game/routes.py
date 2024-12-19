@@ -296,18 +296,43 @@ def next_question(pin):
     from app.game.events import room_participants
     current_app.logger.info(f"Current room participants for {pin}: {room_participants.get(pin, set())}")
     
-    # Prepare question data
-    question_data = {
-        'question_id': question.id,
-        'content': question.content,
-        'answers': [question.correct_answer] + json.loads(question.incorrect_answers),
-        'time_limit': question.time_limit,
-        'points': question.points
-    }
-    current_app.logger.info(f"Emitting question_started event for game {pin}: {question_data}")
-    
-    # Emit question_started event directly with full question data
-    socketio.emit('question_started', question_data, room=game.pin)
+    try:
+        # Parse incorrect answers
+        incorrect_answers = json.loads(question.incorrect_answers)
+        if not isinstance(incorrect_answers, list):
+            current_app.logger.error(f"Invalid incorrect_answers format for question {question.id}")
+            return jsonify({'error': 'Invalid question data'}), 500
+
+        # Prepare question data
+        question_data = {
+            'question_id': question.id,
+            'content': question.content,
+            'answers': [question.correct_answer] + incorrect_answers,
+            'time_limit': question.time_limit or 20,  # Default to 20 seconds if not set
+            'points': question.points or 1000  # Default to 1000 points if not set
+        }
+        
+        # Validate question data
+        if not all(key in question_data for key in ['question_id', 'content', 'answers', 'time_limit', 'points']):
+            current_app.logger.error(f"Missing required fields in question data: {question_data}")
+            return jsonify({'error': 'Invalid question data'}), 500
+            
+        current_app.logger.info(f"Emitting question_started event for game {pin}")
+        current_app.logger.info(f"Question data: {question_data}")
+        current_app.logger.info(f"Room participants: {room_participants.get(pin, set())}")
+        
+        # Emit question_started event directly with full question data
+        socketio.emit('question_started', question_data, room=game.pin)
+        
+        # Log successful emission
+        current_app.logger.info(f"Successfully emitted question_started event for game {pin}")
+        
+    except json.JSONDecodeError as e:
+        current_app.logger.error(f"Failed to parse incorrect_answers for question {question.id}: {str(e)}")
+        return jsonify({'error': 'Invalid question data'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Error preparing question data: {str(e)}")
+        return jsonify({'error': 'Server error'}), 500
     
     return jsonify({
         'question': {

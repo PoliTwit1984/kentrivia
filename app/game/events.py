@@ -109,9 +109,12 @@ def handle_ping():
 @socketio.on('player_join')
 def handle_player_join(data):
     sid = request.sid
+    current_app.logger.info(f"Player join attempt - SID: {sid}, Data: {data}")
+    
     game = Game.query.filter_by(pin=data['pin']).first()
     if not game:
         current_app.logger.error(f"Game not found for PIN: {data['pin']}")
+        emit('join_error', {'message': 'Game not found'})
         return
 
     # Handle host connection
@@ -127,6 +130,7 @@ def handle_player_join(data):
                 'host_id': data.get('host_id')
             })
             update_connection_activity(sid)
+            current_app.logger.info(f"Host successfully joined game {game.pin}")
         return
     
     # Join the game room
@@ -139,12 +143,37 @@ def handle_player_join(data):
         player_id = session.get('player_id')
         if not player_id:
             current_app.logger.error(f"No player_id in session for SID: {sid}")
+            emit('join_error', {'message': 'Player session not found'})
+            leave_room(game.pin)
+            room_participants[game.pin].discard(sid)
             return
             
         player = Player.query.get(player_id)
-        if not player or player.game_id != game.id:
-            current_app.logger.error(f"Player not found or doesn't match game. Player ID: {player_id}, Game ID: {game.id}")
+        if not player:
+            current_app.logger.error(f"Player not found. Player ID: {player_id}")
+            emit('join_error', {'message': 'Player not found'})
             return
+            
+        if player.game_id != game.id:
+            current_app.logger.error(f"Player game mismatch. Player ID: {player_id}, Expected Game: {game.id}, Actual Game: {player.game_id}")
+            # If this is a rejoin attempt, update the player's game ID
+            if data.get('rejoin'):
+                current_app.logger.info(f"Updating player {player_id} game ID from {player.game_id} to {game.id}")
+                try:
+                    player.game_id = game.id
+                    db.session.commit()
+                    current_app.logger.info(f"Successfully updated player {player_id} game ID")
+                except Exception as e:
+                    current_app.logger.error(f"Failed to update player game ID: {str(e)}")
+                    emit('join_error', {'message': 'Failed to update player game'})
+                    leave_room(game.pin)
+                    room_participants[game.pin].discard(sid)
+                    return
+            else:
+                emit('join_error', {'message': 'Player does not belong to this game'})
+                leave_room(game.pin)
+                room_participants[game.pin].discard(sid)
+                return
         
         # Update connection tracking
         active_connections[sid].update({
@@ -242,9 +271,16 @@ def handle_game_started(data=None):
 @socketio.on('submit_answer')
 def handle_submit_answer(data):
     try:
-        player = Player.query.get(session.get('player_id'))
+        player_id = session.get('player_id')
+        if not player_id:
+            current_app.logger.error("No player_id in session")
+            emit('answer_error', {'message': 'Player session not found'})
+            return
+            
+        player = Player.query.get(player_id)
         if not player:
-            current_app.logger.error("Player not found")
+            current_app.logger.error(f"Player not found for ID: {player_id}")
+            emit('answer_error', {'message': 'Player not found'})
             return
         
         question = Question.query.get(data['question_id'])
