@@ -1,4 +1,4 @@
-from flask import render_template, redirect, url_for, flash, request, jsonify, session
+from flask import render_template, redirect, url_for, flash, request, jsonify, session, current_app
 from flask_login import login_required, current_user
 from flask_socketio import emit
 import requests
@@ -264,16 +264,21 @@ def host(pin):
 @login_required
 @csrf.exempt
 def next_question(pin):
+    current_app.logger.info(f"Next question requested for game {pin}")
     game = Game.query.filter_by(pin=pin).first_or_404()
     
     if game.host_id != current_user.id:
+        current_app.logger.error(f"Unauthorized next_question request from user {current_user.id} for game {pin}")
         return jsonify({'error': 'Unauthorized'}), 403
     
     # Get next question
     next_index = game.current_question_index + 1
+    current_app.logger.info(f"Getting question at index {next_index} for game {pin}")
+    
     if game.title == TEST_GAME_CONFIG['title']:
         # For test games, always get the first question
         question = Question.query.filter_by(game_id=game.id).first()
+        current_app.logger.info("Using test game question")
     else:
         question = Question.query.filter_by(game_id=game.id)\
             .order_by(Question.id)\
@@ -281,19 +286,28 @@ def next_question(pin):
             .first()
     
     if not question:
+        current_app.logger.info(f"No more questions for game {pin}")
         return jsonify({'message': 'No more questions'})
     
     game.current_question_index = next_index
     db.session.commit()
     
-    # Emit question_started event directly with full question data
-    socketio.emit('question_started', {
+    # Log room participants before emitting
+    from app.game.events import room_participants
+    current_app.logger.info(f"Current room participants for {pin}: {room_participants.get(pin, set())}")
+    
+    # Prepare question data
+    question_data = {
         'question_id': question.id,
         'content': question.content,
         'answers': [question.correct_answer] + json.loads(question.incorrect_answers),
         'time_limit': question.time_limit,
         'points': question.points
-    }, room=game.pin)
+    }
+    current_app.logger.info(f"Emitting question_started event for game {pin}: {question_data}")
+    
+    # Emit question_started event directly with full question data
+    socketio.emit('question_started', question_data, room=game.pin)
     
     return jsonify({
         'question': {
@@ -310,15 +324,19 @@ def next_question(pin):
 @login_required
 @csrf.exempt
 def start_game(pin):
+    current_app.logger.info(f"Start game requested for game {pin}")
     game = Game.query.filter_by(pin=pin).first_or_404()
     
     if game.host_id != current_user.id:
+        current_app.logger.error(f"Unauthorized start_game request from user {current_user.id} for game {pin}")
         return jsonify({'error': 'Unauthorized'}), 403
     
     if game.started_at:
+        current_app.logger.warning(f"Attempt to start already started game {pin}")
         return jsonify({'error': 'Game already started'}), 400
     
     if not game.questions.count():
+        current_app.logger.error(f"Attempt to start game {pin} without questions")
         return jsonify({'error': 'Cannot start game without questions'}), 400
     
     # Mark all players as ready

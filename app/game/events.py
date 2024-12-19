@@ -1,4 +1,4 @@
-from flask import session, request, url_for
+from flask import session, request, url_for, current_app
 from flask_socketio import emit, join_room, leave_room, disconnect
 from app import socketio, db
 from app.models import Game, Player, Question, Answer
@@ -80,7 +80,7 @@ def handle_connect():
             join_room(game_pin)
             room_participants[game_pin].add(sid)
             active_connections[sid]['game_pin'] = game_pin
-            print(f"Client {sid} joined room: {game_pin}")
+            current_app.logger.info(f"Client {sid} joined room: {game_pin}")
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -95,7 +95,7 @@ def handle_disconnect():
                 room_participants[game_pin].discard(sid)
                 if not room_participants[game_pin]:
                     del room_participants[game_pin]
-                print(f"Client {sid} left room: {game_pin}")
+                current_app.logger.info(f"Client {sid} left room: {game_pin}")
             del active_connections[sid]
         if sid in connection_times:
             del connection_times[sid]
@@ -111,6 +111,7 @@ def handle_player_join(data):
     sid = request.sid
     game = Game.query.filter_by(pin=data['pin']).first()
     if not game:
+        current_app.logger.error(f"Game not found for PIN: {data['pin']}")
         return
     
     # Join the game room
@@ -122,12 +123,12 @@ def handle_player_join(data):
         # Get player from session
         player_id = session.get('player_id')
         if not player_id:
-            print("No player_id in session")
+            current_app.logger.error(f"No player_id in session for SID: {sid}")
             return
             
         player = Player.query.get(player_id)
         if not player or player.game_id != game.id:
-            print("Player not found or doesn't match game")
+            current_app.logger.error(f"Player not found or doesn't match game. Player ID: {player_id}, Game ID: {game.id}")
             return
         
         # Update connection tracking
@@ -141,7 +142,7 @@ def handle_player_join(data):
         })
         update_connection_activity(sid)
         
-        print(f"Player {player.nickname} joined game {game.pin}")
+        current_app.logger.info(f"Player {player.nickname} joined game {game.pin}")
         
         # Handle rejoin scenario
         is_rejoin = data.get('rejoin', False)
@@ -180,7 +181,7 @@ def handle_player_join(data):
         all_players = Player.query.filter_by(game_id=game.id).all()
         ready_players = [p for p in all_players if p.is_ready]
         if len(ready_players) == len(all_players):
-            print(f"All players ready in game {game.pin}")
+            current_app.logger.info(f"All players ready in game {game.pin}")
             emit('all_players_ready', room=game.pin)
         
         # Start periodic cleanup of stale connections
@@ -190,13 +191,19 @@ def handle_player_join(data):
 def handle_game_started(data=None):
     game_pin = session.get('game_pin')
     if not game_pin:
+        current_app.logger.error("No game_pin in session for game_started event")
         return
     
     game = Game.query.filter_by(pin=game_pin).first()
     if not game:
+        current_app.logger.error(f"Game not found for PIN: {game_pin}")
         return
 
-    print(f"Broadcasting game_started to room: {game_pin}")
+    current_app.logger.info(f"Broadcasting game_started to room: {game_pin}")
+    
+    # Log room participants
+    current_app.logger.info(f"Current room participants for {game_pin}: {room_participants.get(game_pin, set())}")
+    
     # Emit to specific game room with start data
     emit('game_started', {
         'started_at': game.started_at.isoformat() if game.started_at else None,
@@ -211,12 +218,12 @@ def handle_submit_answer(data):
     try:
         player = Player.query.get(session.get('player_id'))
         if not player:
-            print("Player not found")
+            current_app.logger.error("Player not found")
             return
         
         question = Question.query.get(data['question_id'])
         if not question or question.game_id != player.game_id:
-            print("Question not found or doesn't match game")
+            current_app.logger.error(f"Question not found or doesn't match game. Question ID: {data.get('question_id')}")
             return
         
         # Check if answer already submitted
@@ -226,11 +233,11 @@ def handle_submit_answer(data):
         ).first()
         
         if existing_answer:
-            print("Answer already submitted")
+            current_app.logger.warning(f"Answer already submitted by player {player.id} for question {question.id}")
             return
         
         # Calculate points based on response time
-        response_time = data['response_time']  # Time taken to answer in seconds
+        response_time = data['response_time']
         max_time = question.time_limit or 20
         time_factor = max(0, (max_time - response_time) / max_time)
         points_earned = int(question.points * time_factor)
@@ -255,9 +262,9 @@ def handle_submit_answer(data):
             player.current_streak = 0
         
         db.session.commit()
-        print(f"Answer processed - Correct: {is_correct}, Points: {points_earned}")
+        current_app.logger.info(f"Answer processed - Player: {player.nickname}, Correct: {is_correct}, Points: {points_earned}")
         
-        # Notify all clients about the answer in the specific game room
+        # Notify all clients about the answer
         emit('answer_submitted', {
             'player_id': player.id,
             'nickname': player.nickname,
@@ -277,18 +284,22 @@ def handle_submit_answer(data):
         })
         
     except Exception as e:
-        print(f"Error processing answer: {str(e)}")
+        current_app.logger.error(f"Error processing answer: {str(e)}")
         db.session.rollback()
 
 @socketio.on('end_question')
 def handle_end_question(data):
     game = Game.query.filter_by(pin=data['pin']).first()
     if not game:
+        current_app.logger.error(f"Game not found for PIN: {data['pin']}")
         return
     
     question = Question.query.get(data['question_id'])
     if not question or question.game_id != game.id:
+        current_app.logger.error(f"Question not found or doesn't match game. Question ID: {data.get('question_id')}")
         return
+    
+    current_app.logger.info(f"Ending question {question.id} for game {game.pin}")
     
     # Get all answers for this question
     answers = Answer.query.filter_by(question_id=question.id).all()
@@ -300,7 +311,9 @@ def handle_end_question(data):
         'response_time': answer.response_time
     } for answer in answers]
     
-    # Send results to all players in the specific game room
+    current_app.logger.info(f"Question {question.id} results - Total answers: {len(answers)}")
+    
+    # Send results to all players
     emit('question_ended', {
         'question_id': question.id,
         'correct_answer': question.correct_answer,
@@ -311,6 +324,7 @@ def handle_end_question(data):
 def handle_leaderboard_request(data):
     game = Game.query.filter_by(pin=data['pin']).first()
     if not game:
+        current_app.logger.error(f"Game not found for PIN: {data['pin']}")
         return
     
     # Get all players sorted by score
@@ -325,7 +339,9 @@ def handle_leaderboard_request(data):
         'streak': player.current_streak
     } for player in players]
     
-    # Send leaderboard to the specific game room
+    current_app.logger.info(f"Sending leaderboard update for game {game.pin}")
+    
+    # Send leaderboard to the game room
     emit('leaderboard_update', {
         'leaderboard': leaderboard_data
     }, room=game.pin)
