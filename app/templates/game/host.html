@@ -374,9 +374,10 @@ function nextQuestion() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token() }}'
+            'X-CSRFToken': '{{ csrf_token() }}',
+            'Authorization': 'Bearer {{ current_user.get_id() }}'
         },
-        credentials: 'same-origin'
+        credentials: 'include'
     })
     .then(response => response.json())
     .then(data => {
@@ -400,6 +401,15 @@ function showQuestion(question) {
     
     // Log room participants before showing question
     console.log('Current room participants:', connectedPlayers);
+    
+    // First notify players to prepare for next question
+    socket.emit('preparing_next_question', { 
+        pin: gamePin,
+        total_questions: {{ game.questions.count() }},
+        current_index: {{ game.current_question_index + 1 }},
+        question: question  // Include question data for immediate display
+    });
+    console.log('Sent preparing_next_question event with question data');
     
     // Update UI
     document.getElementById('questionText').textContent = question.content;
@@ -606,7 +616,10 @@ function endGame() {
     
     console.log('Ending game...');
     fetch('{{ url_for("game.end_game", pin=game.pin) }}', {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer {{ current_user.id }}`
+        }
     })
     .then(response => response.json())
     .then(data => {
@@ -628,7 +641,8 @@ function deleteGame(gameId) {
     fetch(`{{ url_for("game.delete_game", game_id=0) }}`.replace('0', gameId), {
         method: 'DELETE',
         headers: {
-            'X-CSRFToken': '{{ csrf_token() }}'
+            'X-CSRFToken': '{{ csrf_token() }}',
+            'Authorization': `Bearer {{ current_user.id }}`
         }
     })
     .then(response => response.json())
@@ -677,15 +691,40 @@ function shuffleArray(array) {
     }
 }
 
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type} border-0 position-fixed bottom-0 end-0 m-3`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    
+    document.body.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+    
+    toast.addEventListener('hidden.bs.toast', () => {
+        document.body.removeChild(toast);
+    });
+}
+
 // Load initial players
 {% if game.players.all() %}
     {% for player in game.players %}
-        addPlayer({
+        players.set({{ player.id }}, {
             player_id: {{ player.id }},
-            nickname: '{{ player.nickname }}'
+            nickname: '{{ player.nickname }}',
+            score: {{ player.score }}
         });
     {% endfor %}
-    updatePlayerCount();
+    updatePlayerList();
+    updateReadyStatus();
 {% endif %}
 </script>
 {% endblock %}

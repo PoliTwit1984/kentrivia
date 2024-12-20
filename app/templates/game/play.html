@@ -329,7 +329,21 @@ socket.on('game_state_sync', (data) => {
         const remainingTime = data.currentQuestion.time_limit - elapsedTime;
         
         if (remainingTime > 0) {
-            showQuestion(data.currentQuestion, remainingTime);
+            // Reset game state for new question
+            currentQuestion = null;
+            answerSubmitted = false;
+            gameState.hasSubmittedAnswer = false;
+            
+            // Show the question
+            hideConnectionStatus();
+            try {
+                showQuestion(data.currentQuestion);
+                console.log('Question displayed successfully from sync');
+            } catch (error) {
+                console.error('Error showing question from sync:', error);
+                console.error('Question data:', data.currentQuestion);
+                resetGameState();
+            }
         }
     }
 });
@@ -349,25 +363,58 @@ socket.on('all_players_ready', () => {
 });
 
 // Handle question preparation
-socket.on('question_preparing', () => {
-    console.log('Question is being prepared...');
+socket.on('question_preparing', (data) => {
+    console.log('Question is being prepared...', data);
     resetGameState();
-    document.getElementById('waitingScreen').querySelector('h3').textContent = 'Next question coming up...';
+    
+    // Show waiting screen
+    document.getElementById('waitingScreen').style.display = 'block';
+    document.getElementById('questionScreen').style.display = 'none';
+    document.getElementById('resultScreen').style.display = 'none';
+    document.getElementById('leaderboardScreen').style.display = 'none';
+    
+    // Update waiting screen with question info if available
+    const waitingText = document.getElementById('waitingScreen').querySelector('h3');
+    if (data && data.total_questions && data.current_index >= 0) {
+        waitingText.textContent = `Question ${data.current_index + 1} of ${data.total_questions} coming up...`;
+    } else {
+        waitingText.textContent = 'Next question coming up...';
+    }
+    
+    // If question data is already available, prepare to show it
+    if (data && data.question) {
+        setTimeout(() => {
+            showQuestion(data.question);
+        }, 1000); // Short delay to ensure client is ready
+    }
 });
 
-// Handle new question
 socket.on('question_started', (data) => {
     console.log('Received question_started event:', data);
     if (!data || !data.content) {
         console.error('Invalid question data received:', data);
         return;
     }
+    
+    // Clear any existing timers
+    if (timer) {
+        clearInterval(timer);
+        timer = null;
+    }
+    
+    // Reset game state for new question
+    currentQuestion = null;
+    answerSubmitted = false;
+    gameState.hasSubmittedAnswer = false;
+    
+    // Show the question
     hideConnectionStatus();
     try {
         showQuestion(data);
         console.log('Question displayed successfully');
     } catch (error) {
         console.error('Error showing question:', error);
+        console.error('Question data:', data);
         resetGameState();
     }
 });
@@ -401,7 +448,7 @@ function showQuestion(question) {
     currentQuestion = question;
     answerSubmitted = false;
     startTime = Date.now();
-    gameState.currentQuestionId = question.question_id;
+    gameState.currentQuestionId = question.id;
     gameState.hasSubmittedAnswer = false;
     
     try {
@@ -486,7 +533,7 @@ function submitAnswer(answer) {
     
     // Send answer to server
     socket.emit('submit_answer', {
-        question_id: currentQuestion.question_id,
+        question_id: currentQuestion.id,
         answer: answer,
         response_time: responseTime
     });

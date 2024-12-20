@@ -31,6 +31,7 @@ class Game(db.Model):
     started_at = db.Column(db.DateTime)
     ended_at = db.Column(db.DateTime)
     current_question_index = db.Column(db.Integer, default=-1)
+    current_question_started_at = db.Column(db.DateTime)
     is_active = db.Column(db.Boolean, default=True)
     
     questions = db.relationship('Question', backref='game', lazy='dynamic')

@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask_socketio import SocketIO
 from flask_wtf.csrf import CSRFProtect
@@ -10,6 +11,7 @@ from logging.handlers import RotatingFileHandler
 import os
 
 db = SQLAlchemy()
+migrate = Migrate()
 login_manager = LoginManager()
 socketio = SocketIO()
 csrf = CSRFProtect()
@@ -32,6 +34,7 @@ def create_app():
     app.logger.info('KenTrivia startup')
 
     db.init_app(app)
+    migrate.init_app(app, db)
     login_manager.init_app(app)
     csrf.init_app(app)
     

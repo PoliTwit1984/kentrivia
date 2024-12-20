@@ -260,8 +260,39 @@ def host(pin):
                          title='Host Game',
                          game=game)
 
+from functools import wraps
+from flask import request
+
+from flask_login import current_user, login_user
+from app.models import User
+
+from flask import session as flask_session
+
+def auth_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Missing or invalid authorization header'}), 401
+        user_id = auth_header.split(' ')[1]
+        if not user_id:
+            return jsonify({'error': 'Invalid authorization token'}), 401
+        
+        # Get user and set up session
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'error': 'Invalid user'}), 401
+            
+        # Store user info in session
+        flask_session['user_id'] = user.id
+        flask_session['_user_id'] = user.id  # Required by Flask-Login
+        flask_session['_fresh'] = True  # Mark session as fresh
+        
+        return f(*args, **kwargs)
+    return decorated
+
 @bp.route('/api/game/<pin>/next-question', methods=['POST'])
-@login_required
+@auth_required
 @csrf.exempt
 def next_question(pin):
     current_app.logger.info(f"Next question requested for game {pin}")
@@ -274,22 +305,27 @@ def next_question(pin):
     # Get next question
     next_index = game.current_question_index + 1
     current_app.logger.info(f"Getting question at index {next_index} for game {pin}")
+    current_app.logger.info(f"Current game state: started_at={game.started_at}, current_question_index={game.current_question_index}, current_question_started_at={game.current_question_started_at}")
+    
+    # Get all questions for this game
+    questions = Question.query.filter_by(game_id=game.id).order_by(Question.id).all()
+    current_app.logger.info(f"Total questions for game {pin}: {len(questions)}")
     
     if game.title == TEST_GAME_CONFIG['title']:
         # For test games, always get the first question
-        question = Question.query.filter_by(game_id=game.id).first()
+        question = questions[0] if questions else None
         current_app.logger.info("Using test game question")
     else:
-        question = Question.query.filter_by(game_id=game.id)\
-            .order_by(Question.id)\
-            .offset(next_index)\
-            .first()
+        # Get question at current index
+        question = questions[next_index] if next_index < len(questions) else None
     
-    if not question:
-        current_app.logger.info(f"No more questions for game {pin}")
+    if not question or next_index >= len(questions):
+        current_app.logger.info(f"No more questions for game {pin}. Total questions: {len(questions)}, Requested index: {next_index}")
         return jsonify({'message': 'No more questions'})
     
+    # Update game state with new question index and start time
     game.current_question_index = next_index
+    game.current_question_started_at = datetime.utcnow()
     db.session.commit()
     
     # Log room participants before emitting
@@ -298,34 +334,56 @@ def next_question(pin):
     
     try:
         # Parse incorrect answers
+        current_app.logger.info(f"Raw incorrect_answers: {question.incorrect_answers}")
         incorrect_answers = json.loads(question.incorrect_answers)
         if not isinstance(incorrect_answers, list):
             current_app.logger.error(f"Invalid incorrect_answers format for question {question.id}")
             return jsonify({'error': 'Invalid question data'}), 500
+        current_app.logger.info(f"Parsed incorrect_answers: {incorrect_answers}")
 
         # Prepare question data
         question_data = {
-            'question_id': question.id,
+            'id': question.id,  # Changed from question_id to id to match client expectations
             'content': question.content,
             'answers': [question.correct_answer] + incorrect_answers,
             'time_limit': question.time_limit or 20,  # Default to 20 seconds if not set
-            'points': question.points or 1000  # Default to 1000 points if not set
+            'points': question.points or 1000,  # Default to 1000 points if not set
+            'correct_answer': question.correct_answer,  # Add correct_answer for host view
+            'incorrect_answers': incorrect_answers  # Add incorrect_answers for host view
         }
         
         # Validate question data
-        if not all(key in question_data for key in ['question_id', 'content', 'answers', 'time_limit', 'points']):
-            current_app.logger.error(f"Missing required fields in question data: {question_data}")
+        required_fields = ['id', 'content', 'answers', 'time_limit', 'points']
+        missing_fields = [field for field in required_fields if field not in question_data]
+        if missing_fields:
+            current_app.logger.error(f"Missing required fields in question data: {missing_fields}")
+            current_app.logger.error(f"Question data: {question_data}")
             return jsonify({'error': 'Invalid question data'}), 500
             
         current_app.logger.info(f"Emitting question_started event for game {pin}")
         current_app.logger.info(f"Question data: {question_data}")
         current_app.logger.info(f"Room participants: {room_participants.get(pin, set())}")
         
-        # Emit question_started event directly with full question data
-        socketio.emit('question_started', question_data, room=game.pin)
+        # Notify players to prepare for next question
+        socketio.emit('question_preparing', room=game.pin)
+        current_app.logger.info(f"Emitted question_preparing event for game {pin}")
         
-        # Log successful emission
+        # Short delay to ensure clients are ready
+        import time
+        time.sleep(1)
+        
+        # Emit question_started event with full question data
+        socketio.emit('question_started', question_data, room=game.pin)
         current_app.logger.info(f"Successfully emitted question_started event for game {pin}")
+        current_app.logger.info(f"Question data sent: {question_data}")
+        
+        # Log current room participants
+        from app.game.events import room_participants
+        current_app.logger.info(f"Room participants after sending question: {room_participants.get(pin, set())}")
+        
+        # Log active connections
+        from app.game.events import active_connections
+        current_app.logger.info(f"Active connections after sending question: {active_connections}")
         
     except json.JSONDecodeError as e:
         current_app.logger.error(f"Failed to parse incorrect_answers for question {question.id}: {str(e)}")
@@ -335,18 +393,11 @@ def next_question(pin):
         return jsonify({'error': 'Server error'}), 500
     
     return jsonify({
-        'question': {
-            'id': question.id,
-            'content': question.content,
-            'correct_answer': question.correct_answer,
-            'incorrect_answers': json.loads(question.incorrect_answers),
-            'time_limit': question.time_limit,
-            'points': question.points
-        }
+        'question': question_data  # Return the same data structure that was emitted via socket
     })
 
 @bp.route('/api/game/<pin>/start', methods=['POST'])
-@login_required
+@auth_required
 @csrf.exempt
 def start_game(pin):
     current_app.logger.info(f"Start game requested for game {pin}")
@@ -392,7 +443,7 @@ def start_game(pin):
     return jsonify({'success': True})
 
 @bp.route('/api/game/<pin>/end', methods=['POST'])
-@login_required
+@auth_required
 @csrf.exempt
 def end_game(pin):
     game = Game.query.filter_by(pin=pin).first_or_404()
@@ -407,7 +458,7 @@ def end_game(pin):
     return jsonify({'success': True})
 
 @bp.route('/api/game/<int:game_id>', methods=['DELETE'])
-@login_required
+@auth_required
 @csrf.exempt
 def delete_game(game_id):
     game = Game.query.get_or_404(game_id)
@@ -425,7 +476,7 @@ def delete_game(game_id):
     return jsonify({'success': True})
 
 @bp.route('/api/question/<int:question_id>', methods=['DELETE'])
-@login_required
+@auth_required
 @csrf.exempt
 def delete_question(question_id):
     question = Question.query.get_or_404(question_id)
