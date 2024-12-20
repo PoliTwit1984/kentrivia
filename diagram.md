@@ -6,11 +6,12 @@
 sequenceDiagram
     participant Host
     participant Server
-    participant Player
+    participant Socket.IO
     participant Database
+    participant Player
 
     Host->>Server: Create Game
-    Server->>Database: Store Game
+    Server->>Database: Store Game (Sequelize)
     Server-->>Host: Game PIN
 
     Player->>Server: Join Game (PIN)
@@ -19,122 +20,200 @@ sequenceDiagram
     Server-->>Player: Join Confirmation
     Server-->>Host: Player Joined
 
-    Host->>Server: Start Game
+    Player->>Socket.IO: Connect WebSocket
+    Socket.IO->>Server: Authenticate Session
+    Server-->>Socket.IO: Session Valid
+    Socket.IO-->>Player: Connected
+
+    Host->>Socket.IO: Start Game
+    Socket.IO->>Server: Validate Host
     Server->>Database: Update Game State
-    Server-->>Player: Game Started
-    Server-->>Host: Game Started
+    Socket.IO-->>Player: Game Started
+    Socket.IO-->>Host: Game Started
 
     loop Questions
-        Host->>Server: Prepare Question
+        Host->>Socket.IO: Next Question
         Server->>Database: Get Question
-        Server-->>Player: Question Preparing
-        Server-->>Player: Question Started
-        Player->>Server: Submit Answer
+        Socket.IO-->>Player: Question Preparing
+        Socket.IO-->>Player: Question Started
+        Player->>Socket.IO: Submit Answer
         Server->>Database: Store Answer
-        Server-->>Player: Answer Result
-        Server-->>Host: Answer Submitted
+        Socket.IO-->>Player: Answer Result
+        Socket.IO-->>Host: Answer Submitted
+        Socket.IO-->>All: Update Leaderboard
     end
-```
-
-## Test Flow
-
-```mermaid
-sequenceDiagram
-    participant Test
-    participant Server
-    participant Database
-
-    Note over Test: Setup Phase
-    Test->>Database: Create Test User (Host)
-    Test->>Database: Create Test Game
-    Test->>Database: Add Test Questions
-
-    Note over Test: Host Connection
-    Test->>Server: Create Host Socket
-    Test->>Server: Host Join Game
-    Server-->>Test: Join Confirmation
-
-    Note over Test: Player Setup
-    Test->>Database: Create Test Player
-    Test->>Server: Create Player Socket
-    Test->>Server: Player Join Game
-    Server-->>Test: Join Confirmation (Currently Failing)
-
-    Note over Test: Game Flow
-    Test->>Server: Start Game
-    Server-->>Test: Game Started Event
-    Test->>Server: Prepare Question
-    Server-->>Test: Question Preparing Event
-    Server-->>Test: Question Started Event
-
-    Note over Test: Verification Points
-    Test->>Test: Verify Join Events
-    Test->>Test: Verify Game Start
-    Test->>Test: Verify Question Flow
 ```
 
 ## Component Architecture
 
 ```mermaid
 graph TD
-    A[Flask App] --> B[Game Module]
-    A --> C[Auth Module]
-    A --> D[Main Module]
-    A --> E[API Module]
+    A[Express App] --> B[Game Routes]
+    A --> C[Auth Routes]
+    A --> D[Main Routes]
+    A --> E[Socket.IO Server]
 
     B --> F[Socket Events]
-    B --> G[Game Routes]
-    B --> H[Game Forms]
+    B --> G[Game Controllers]
+    B --> H[View Templates]
 
-    F --> I[Event Handlers]
-    I --> J[Database]
+    E --> I[Event Handlers]
+    I --> J[Sequelize Models]
     I --> K[Room Management]
-    I --> L[Session Management]
+    I --> L[Session Store]
 
-    subgraph Testing
-        M[Test Cases]
-        N[Test Database]
-        O[Socket Client]
-        P[Test Fixtures]
+    subgraph Frontend
+        M[EJS Templates]
+        N[Socket.IO Client]
+        O[Bootstrap UI]
+        P[Client JS]
+        Q[Connection Status]
     end
 
-    M --> O
-    O --> F
-    M --> N
+    subgraph Database
+        R[PostgreSQL]
+        S[Sessions Table]
+        T[Game Tables]
+        U[User Tables]
+    end
+
+    J --> R
+    L --> S
+    G --> T
+    C --> U
 ```
 
-## Current Testing Focus
-
-```mermaid
-graph TD
-    A[test_game_questions.py] --> B[Socket Setup]
-    B --> C[Host Connection]
-    B --> D[Player Connection]
-    
-    C --> E[Host Join]
-    D --> F[Player Join]
-    F --> G{Join Event Issue}
-    
-    G --> H[Event Emission]
-    G --> I[Room Management]
-    G --> J[Session State]
-    
-    H --> K[Debugging]
-    I --> K
-    J --> K
-```
-
-## Event Flow (Current Issue)
+## Authentication Flow
 
 ```mermaid
 sequenceDiagram
-    participant Test
+    participant Client
     participant Server
-    participant Room
-    participant Session
+    participant Passport
+    participant Database
+    participant Socket.IO
 
-    Test->>Server: Player Join Request
-    Server->>Session: Set Session Data
-    Server->>Room: Join Room
-    Server--xTest: Player Joined Event (Missing)
-    Note over Server,Test: Event not reaching test client
+    Client->>Server: Login Request
+    Server->>Passport: Authenticate
+    Passport->>Database: Verify Credentials
+    Database-->>Passport: User Data
+    Passport-->>Server: Authentication Result
+    Server-->>Client: Session Cookie
+
+    Client->>Socket.IO: Connect WebSocket
+    Socket.IO->>Server: Validate Session
+    Server->>Database: Verify Session
+    Database-->>Server: Session Valid
+    Server-->>Socket.IO: Session Authenticated
+    Socket.IO-->>Client: Connection Established
+```
+
+## Socket.IO Event Flow
+
+```mermaid
+graph TD
+    A[Socket Connection] --> B{Event Type}
+    
+    B -->|player_join| C[Join Room]
+    B -->|game_started| D[Start Game]
+    B -->|preparing_next_question| E[Prepare Question]
+    B -->|submit_answer| F[Process Answer]
+    
+    C --> G[Room Management]
+    D --> H[Game State]
+    E --> I[Question Flow]
+    F --> J[Score Calculation]
+    
+    G --> K[Broadcast Updates]
+    H --> K
+    I --> K
+    J --> K
+    
+    K --> L[Connected Clients]
+
+    subgraph Session Handling
+        M[Session Validation]
+        N[Session Store]
+        O[Session Recovery]
+    end
+
+    A --> M
+    M --> N
+    O --> N
+```
+
+## Data Models
+
+```mermaid
+erDiagram
+    User ||--o{ Game : hosts
+    Game ||--o{ Question : contains
+    Game ||--o{ Player : has
+    Player ||--o{ Answer : submits
+    Question ||--o{ Answer : receives
+    Session ||--o{ User : authenticates
+
+    User {
+        int id PK
+        string username
+        string email
+        string password
+        datetime created_at
+        datetime updated_at
+    }
+
+    Game {
+        int id PK
+        string pin
+        int host_id FK
+        bool is_active
+        datetime started_at
+        datetime ended_at
+        int current_question_index
+        datetime current_question_started_at
+        datetime created_at
+        datetime updated_at
+    }
+
+    Question {
+        int id PK
+        int game_id FK
+        text content
+        string correct_answer
+        json incorrect_answers
+        int time_limit
+        int points
+        datetime created_at
+        datetime updated_at
+    }
+
+    Player {
+        int id PK
+        int game_id FK
+        string nickname
+        int score
+        int current_streak
+        bool is_ready
+        datetime created_at
+        datetime updated_at
+    }
+
+    Answer {
+        int id PK
+        int player_id FK
+        int question_id FK
+        string answer_text
+        bool is_correct
+        float response_time
+        int points_awarded
+        datetime created_at
+        datetime updated_at
+    }
+
+    Session {
+        string id PK
+        json data
+        datetime expires
+        datetime created_at
+        datetime updated_at
+    }

@@ -1,0 +1,324 @@
+<div id="gameData" data-client-data="<%- JSON.stringify(clientData) %>" style="display: none;"></div>
+<div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-4"><%= game.title %></h1>
+            <div class="d-flex align-items-center">
+                <div class="me-4">
+                    <span class="badge bg-primary">
+                        <i class="fas fa-user"></i> <%= player.nickname %>
+                    </span>
+                </div>
+                <div class="me-4">
+                    <span class="badge bg-success">
+                        <i class="fas fa-star"></i> <span id="playerScore"><%= player.score %></span> points
+                    </span>
+                </div>
+                <div>
+                    <span class="badge bg-warning text-dark">
+                        <i class="fas fa-fire streak-flame"></i> <span id="playerStreak"><%= player.current_streak %></span>x streak
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Question Display -->
+    <div id="questionContainer" class="mb-4" style="display: none;">
+        <div class="card">
+            <div class="card-header">
+                <div class="progress" style="height: 4px;">
+                    <div id="timeProgress" class="progress-bar bg-primary" style="width: 100%;"></div>
+                </div>
+            </div>
+            <div class="card-body">
+                <h2 id="questionText" class="card-title mb-4"></h2>
+                <div id="answerOptions" class="row row-cols-1 row-cols-md-2 g-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Waiting Screen -->
+    <div id="waitingScreen" class="text-center py-5">
+        <div class="spinner-wrapper">
+            <div class="spinner"></div>
+        </div>
+        <h3 class="mt-4">Waiting for next question...</h3>
+        <p class="text-muted">Get ready!</p>
+    </div>
+
+    <!-- Answer Result -->
+    <div id="resultScreen" class="text-center py-5" style="display: none;">
+        <div id="resultIcon" class="display-1 mb-4"></div>
+        <h2 id="resultText" class="mb-3"></h2>
+        <p id="correctAnswer" class="lead mb-4"></p>
+        <div id="pointsAwarded" class="badge bg-success fs-5 mb-4"></div>
+    </div>
+
+    <!-- Game Stats -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="mb-0">Game Stats</h3>
+        </div>
+        <div class="card-body">
+            <div class="row text-center">
+                <div class="col-md-4">
+                    <h4>Total Score</h4>
+                    <p class="display-6" id="totalScore"><%= player.score %></p>
+                </div>
+                <div class="col-md-4">
+                    <h4>Current Streak</h4>
+                    <p class="display-6" id="currentStreak"><%= player.current_streak %></p>
+                </div>
+                <div class="col-md-4">
+                    <h4>Correct Answers</h4>
+                    <p class="display-6" id="correctAnswers">0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- contentFor('extraCss') %>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<style>
+.answer-option {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.answer-option:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.answer-option.selected {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.answer-option.correct {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.answer-option.incorrect {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+.streak-flame {
+    animation: flicker 1s infinite;
+}
+
+@keyframes flicker {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+}
+
+.spinner-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+
+<%- contentFor('extraJs') %>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    let currentQuestion = null;
+    let questionStartTime = null;
+    let answerSubmitted = false;
+    let correctAnswersCount = 0;
+    let timer = null;
+
+    // Initialize game data
+    const gameData = JSON.parse(document.getElementById('gameData').dataset.clientData);
+
+    // Join game room
+    socket.emit('player_join', {
+        pin: gameData.pin,
+        player_id: gameData.playerId,
+        is_host: false,
+        rejoin: true
+    });
+
+    // Question preparation
+    socket.on('question_preparing', (data) => {
+        showWaitingScreen();
+        currentQuestion = data.question;
+        answerSubmitted = false;
+    });
+
+    // Question start
+    socket.on('question_started', (data) => {
+        showQuestion(data);
+        startTimer(data.time_limit);
+        questionStartTime = Date.now();
+    });
+
+    // Answer result
+    socket.on('answer_result', (data) => {
+        showResult(data);
+        updateStats(data);
+    });
+
+    // Question ended
+    socket.on('question_ended', (data) => {
+        if (!answerSubmitted) {
+            showResult({
+                is_correct: false,
+                correct_answer: data.correct_answer,
+                points_awarded: 0
+            });
+        }
+        setTimeout(showWaitingScreen, 5000);
+    });
+
+    function showQuestion(question) {
+        const container = document.getElementById('questionContainer');
+        const text = document.getElementById('questionText');
+        const options = document.getElementById('answerOptions');
+        
+        text.textContent = question.content;
+        
+        // Shuffle answers
+        const answers = [...question.answers];
+        for (let i = answers.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [answers[i], answers[j]] = [answers[j], answers[i]];
+        }
+        
+        options.innerHTML = answers.map(answer => `
+            <div class="col">
+                <div class="card answer-option h-100" data-answer="${answer}">
+                    <div class="card-body">
+                        <p class="card-text text-center fs-5 mb-0">${answer}</p>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        // Add click handlers
+        document.querySelectorAll('.answer-option').forEach(option => {
+            option.addEventListener('click', () => submitAnswer(option));
+        });
+
+        document.getElementById('waitingScreen').style.display = 'none';
+        document.getElementById('resultScreen').style.display = 'none';
+        container.style.display = 'block';
+    }
+
+    function submitAnswer(selectedOption) {
+        if (answerSubmitted || !currentQuestion) return;
+        
+        answerSubmitted = true;
+        const answer = selectedOption.dataset.answer;
+        const responseTime = (Date.now() - questionStartTime) / 1000;
+
+        // Disable all options
+        document.querySelectorAll('.answer-option').forEach(option => {
+            option.style.pointerEvents = 'none';
+        });
+
+        // Show selection
+        selectedOption.classList.add('selected');
+
+        // Submit answer
+        socket.emit('submit_answer', {
+            question_id: currentQuestion.id,
+            answer: answer,
+            response_time: responseTime
+        });
+    }
+
+    function showResult(data) {
+        const resultScreen = document.getElementById('resultScreen');
+        const icon = document.getElementById('resultIcon');
+        const text = document.getElementById('resultText');
+        const answer = document.getElementById('correctAnswer');
+        const points = document.getElementById('pointsAwarded');
+
+        icon.innerHTML = data.is_correct ? 
+            '<i class="fas fa-check-circle text-success"></i>' : 
+            '<i class="fas fa-times-circle text-danger"></i>';
+        
+        text.textContent = data.is_correct ? 'Correct!' : 'Incorrect';
+        answer.textContent = `Correct answer: ${data.correct_answer}`;
+        points.textContent = `+${data.points_awarded} points`;
+
+        document.getElementById('questionContainer').style.display = 'none';
+        document.getElementById('waitingScreen').style.display = 'none';
+        resultScreen.style.display = 'block';
+
+        if (timer) {
+            clearInterval(timer);
+            timer = null;
+        }
+    }
+
+    function showWaitingScreen() {
+        document.getElementById('questionContainer').style.display = 'none';
+        document.getElementById('resultScreen').style.display = 'none';
+        document.getElementById('waitingScreen').style.display = 'block';
+        
+        if (timer) {
+            clearInterval(timer);
+            timer = null;
+        }
+    }
+
+    function startTimer(duration) {
+        const progress = document.getElementById('timeProgress');
+        const startTime = Date.now();
+        const endTime = startTime + (duration * 1000);
+
+        if (timer) clearInterval(timer);
+
+        timer = setInterval(() => {
+            const now = Date.now();
+            const timeLeft = Math.max(0, endTime - now);
+            const percent = (timeLeft / (duration * 1000)) * 100;
+
+            progress.style.width = `${percent}%`;
+
+            if (timeLeft === 0 && !answerSubmitted) {
+                clearInterval(timer);
+                timer = null;
+                // Auto-submit timeout
+                socket.emit('submit_answer', {
+                    question_id: currentQuestion.id,
+                    answer: '',
+                    response_time: duration
+                });
+            }
+        }, 50);
+    }
+
+    function updateStats(data) {
+        document.getElementById('playerScore').textContent = data.new_score;
+        document.getElementById('playerStreak').textContent = data.new_streak;
+        document.getElementById('totalScore').textContent = data.new_score;
+        document.getElementById('currentStreak').textContent = data.new_streak;
+        if (data.is_correct) {
+            correctAnswersCount++;
+            document.getElementById('correctAnswers').textContent = correctAnswersCount;
+        }
+    }
+});
+</script>

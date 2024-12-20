@@ -1,0 +1,53 @@
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="mb-0">Create New Game</h2>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="/game/create">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Game Title</label>
+                            <input type="text" class="form-control" id="title" name="title" required 
+                                   minlength="3" maxlength="64" placeholder="Enter a title for your game">
+                            <% if (typeof errors !== 'undefined' && errors.title) { %>
+                                <div class="text-danger"><%= errors.title %></div>
+                            <% } %>
+                            <div class="form-text">
+                                Choose a title that describes your trivia game (3-64 characters).
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <h5 class="alert-heading"><i class="fas fa-info-circle"></i> Next Steps</h5>
+                            <p class="mb-0">
+                                After creating your game, you'll be able to:
+                                <ul class="mb-0">
+                                    <li>Add questions and answers</li>
+                                    <li>Set time limits and point values</li>
+                                    <li>Share the game PIN with players</li>
+                                    <li>Start the game when ready</li>
+                                </ul>
+                            </p>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-plus"></i> Create Game
+                            </button>
+                            <a href="/game/dashboard" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to Dashboard
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- contentFor('extraCss') %>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">

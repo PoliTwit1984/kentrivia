@@ -1,0 +1,219 @@
+<div id="gameData" data-client-data="<%- JSON.stringify(clientData) %>" style="display: none;"></div>
+<div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-4"><%= game.title %></h1>
+            <p class="lead">
+                Game PIN: <span class="game-pin"><%= game.pin %></span>
+            </p>
+        </div>
+        <% if (isHost) { %>
+            <div class="col-auto align-self-center">
+                <button id="startGameBtn" class="btn btn-success btn-lg" <%= game.Players.length === 0 ? 'disabled' : '' %>>
+                    <i class="fas fa-play"></i> Start Game
+                </button>
+            </div>
+        <% } %>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Players List -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">
+                        Players
+                        <span class="badge bg-primary" id="playerCount"><%= game.Players.length %></span>
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div id="participants-list" class="row row-cols-1 row-cols-md-2 g-4">
+                        <% game.Players.forEach(player => { %>
+                            <div class="col" data-player-id="<%= player.id %>">
+                                <div class="card h-100 player-card <%= player.is_ready ? 'border-success' : '' %>">
+                                    <div class="card-body">
+                                        <h5 class="card-title mb-0">
+                                            <%= player.nickname %>
+                                            <% if (player.is_ready) { %>
+                                                <span class="badge bg-success float-end">Ready</span>
+                                            <% } %>
+                                        </h5>
+                                    </div>
+                                </div>
+                            </div>
+                        <% }); %>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <!-- Game Info -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3 class="mb-0">Game Info</h3>
+                </div>
+                <div class="card-body">
+                    <% if (isHost) { %>
+                        <div class="alert alert-info">
+                            <h5 class="alert-heading">
+                                <i class="fas fa-info-circle"></i> Host Instructions
+                            </h5>
+                            <p class="mb-0">
+                                Share the Game PIN with your players. Once everyone has joined, click "Start Game" to begin!
+                            </p>
+                        </div>
+                    <% } else { %>
+                        <div class="alert alert-info">
+                            <h5 class="alert-heading">
+                                <i class="fas fa-info-circle"></i> Player Instructions
+                            </h5>
+                            <p class="mb-0">
+                                Wait for the host to start the game. Get ready to answer questions quickly and accurately!
+                            </p>
+                        </div>
+                    <% } %>
+
+                    <div class="mb-3">
+                        <strong>Host:</strong>
+                        <span id="hostName"><%= game.host ? game.host.username : 'Loading...' %></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <strong>Status:</strong>
+                        <span id="gameStatus" class="text-success">Waiting for players...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- QR Code for joining -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">Quick Join</h3>
+                </div>
+                <div class="card-body text-center">
+                    <div id="qrcode" class="mb-3"></div>
+                    <p class="text-muted small">
+                        Scan to join the game
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- contentFor('extraCss') %>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<style>
+.game-pin {
+    font-family: monospace;
+    font-size: 1.5em;
+    letter-spacing: 0.1em;
+}
+
+.player-card {
+    transition: all 0.3s ease;
+}
+
+.player-card:hover {
+    transform: translateY(-5px);
+}
+
+.player-card.border-success {
+    border-width: 2px;
+}
+
+#qrcode img {
+    margin: 0 auto;
+}
+</style>
+
+<%- contentFor('extraJs') %>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Generate QR code
+    new QRCode(document.getElementById('qrcode'), {
+        text: window.location.origin + '/?pin=<%= game.pin %>',
+        width: 128,
+        height: 128
+    });
+
+    // Socket.IO event handlers
+    socket.on('room_participants_changed', (data) => {
+        updateParticipantsList(data.connected_players);
+    });
+
+    socket.on('player_ready', (data) => {
+        updatePlayerStatus(data.player_id, true);
+    });
+
+    socket.on('all_players_ready', () => {
+        document.getElementById('gameStatus').textContent = 'All players ready!';
+        if (document.getElementById('startGameBtn')) {
+            document.getElementById('startGameBtn').disabled = false;
+        }
+    });
+
+    socket.on('game_started', (data) => {
+        window.location.href = isHost ? data.redirect.host : data.redirect.player;
+    });
+
+    // Initialize client data from data attribute
+    const clientData = JSON.parse(document.getElementById('gameData').dataset.clientData);
+    const isHost = clientData.isHost;
+
+    // Join the game room
+    socket.emit('player_join', {
+        pin: clientData.pin,
+        player_id: clientData.playerId,
+        host_id: clientData.hostId,
+        is_host: clientData.isHost
+    });
+
+    // Start game button handler
+    const startGameBtn = document.getElementById('startGameBtn');
+    if (startGameBtn) {
+        startGameBtn.addEventListener('click', () => {
+            socket.emit('game_started');
+        });
+    }
+});
+
+function updateParticipantsList(players) {
+    const list = document.getElementById('participants-list');
+    const count = document.getElementById('playerCount');
+    
+    list.innerHTML = players.map(player => `
+        <div class="col" data-player-id="${player.id}">
+            <div class="card h-100 player-card ${player.is_ready ? 'border-success' : ''}">
+                <div class="card-body">
+                    <h5 class="card-title mb-0">
+                        ${player.nickname}
+                        ${player.is_ready ? '<span class="badge bg-success float-end">Ready</span>' : ''}
+                    </h5>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    count.textContent = players.length;
+    
+    if (startGameBtn) {
+        startGameBtn.disabled = players.length === 0;
+    }
+}
+
+function updatePlayerStatus(playerId, isReady) {
+    const playerCard = document.querySelector(`[data-player-id="${playerId}"] .player-card`);
+    if (playerCard) {
+        if (isReady) {
+            playerCard.classList.add('border-success');
+            const title = playerCard.querySelector('.card-title');
+            if (!title.querySelector('.badge')) {
+                title.innerHTML += '<span class="badge bg-success float-end">Ready</span>';
+            }
+        }
+    }
+}
+</script>

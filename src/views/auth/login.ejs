@@ -1,0 +1,44 @@
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="mb-0">Login</h2>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="/auth/login">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                            <% if (typeof error !== 'undefined' && error.username) { %>
+                                <div class="text-danger"><%= error.username %></div>
+                            <% } %>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                            <% if (typeof error !== 'undefined' && error.password) { %>
+                                <div class="text-danger"><%= error.password %></div>
+                            <% } %>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-sign-in-alt"></i> Login
+                            </button>
+                            <a href="/auth/register" class="btn btn-outline-primary">
+                                Don't have an account? Sign up
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- contentFor('extraCss') %>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">

@@ -1,0 +1,98 @@
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="mb-0">Create Account</h2>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="/auth/register">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="username" name="username" 
+                                   required minlength="3" maxlength="20"
+                                   pattern="[a-zA-Z0-9_-]+"
+                                   title="Username can only contain letters, numbers, underscores, and hyphens">
+                            <div class="form-text">
+                                Choose a username between 3-20 characters. Only letters, numbers, underscores, and hyphens allowed.
+                            </div>
+                            <% if (typeof error !== 'undefined' && error.username) { %>
+                                <div class="text-danger"><%= error.username %></div>
+                            <% } %>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                            <div class="form-text">
+                                We'll never share your email with anyone else.
+                            </div>
+                            <% if (typeof error !== 'undefined' && error.email) { %>
+                                <div class="text-danger"><%= error.email %></div>
+                            <% } %>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="password" name="password" 
+                                   required minlength="8">
+                            <div class="form-text">
+                                Password must be at least 8 characters long.
+                            </div>
+                            <% if (typeof error !== 'undefined' && error.password) { %>
+                                <div class="text-danger"><%= error.password %></div>
+                            <% } %>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="confirm_password" class="form-label">Confirm Password</label>
+                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                            <% if (typeof error !== 'undefined' && error.confirm_password) { %>
+                                <div class="text-danger"><%= error.confirm_password %></div>
+                            <% } %>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-user-plus"></i> Create Account
+                            </button>
+                            <a href="/auth/login" class="btn btn-outline-primary">
+                                Already have an account? Login
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- contentFor('extraCss') %>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+<%- contentFor('extraJs') %>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.querySelector('form');
+    const password = document.getElementById('password');
+    const confirmPassword = document.getElementById('confirm_password');
+
+    form.addEventListener('submit', (e) => {
+        if (password.value !== confirmPassword.value) {
+            e.preventDefault();
+            confirmPassword.setCustomValidity('Passwords do not match');
+        } else {
+            confirmPassword.setCustomValidity('');
+        }
+    });
+
+    confirmPassword.addEventListener('input', () => {
+        if (password.value === confirmPassword.value) {
+            confirmPassword.setCustomValidity('');
+        } else {
+            confirmPassword.setCustomValidity('Passwords do not match');
+        }
+    });
+});</script>

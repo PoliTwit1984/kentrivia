@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<%= csrfToken %>">
+    <title><%= typeof title !== 'undefined' ? `${title} - ` : '' %>KenTrivia</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <%- typeof extraCss !== 'undefined' ? extraCss : '' %>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">KenTrivia</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <% if (user) { %>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/game/dashboard">Dashboard</a>
+                    </li>
+                    <% } %>
+                </ul>
+                <ul class="navbar-nav">
+                    <% if (user) { %>
+                    <li class="nav-item">
+                        <span class="nav-link">Welcome, <%= user.username %></span>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/auth/logout">Logout</a>
+                    </li>
+                    <% } else { %>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/auth/login">Login</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/auth/register">Register</a>
+                    </li>
+                    <% } %>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Connection status -->
+    <div id="connectionStatus" class="alert alert-warning text-center mb-0 rounded-0 d-none">
+        <i class="fas fa-exclamation-triangle"></i> 
+        <span id="connectionMessage">Connecting...</span>
+    </div>
+
+    <main class="container mt-4">
+        <% if (typeof error !== 'undefined' && error) { %>
+            <div class="alert alert-danger alert-dismissible fade show">
+                <%= error %>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <% } %>
+
+        <% if (typeof success !== 'undefined' && success) { %>
+            <div class="alert alert-success alert-dismissible fade show">
+                <%= success %>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <% } %>
+
+        <%- body %>
+    </main>
+
+    <footer class="footer mt-5 py-3 bg-light">
+        <div class="container text-center">
+            <span class="text-muted">© 2024 KenTrivia. All rights reserved.</span>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        // Connection status element
+        const connectionStatus = document.getElementById('connectionStatus');
+        const connectionMessage = document.getElementById('connectionMessage');
+
+        const showConnectionStatus = (message, type = 'warning') => {
+            connectionStatus.className = `alert alert-${type} text-center mb-0 rounded-0`;
+            connectionMessage.textContent = message;
+            connectionStatus.classList.remove('d-none');
+        };
+
+        const hideConnectionStatus = () => {
+            connectionStatus.classList.add('d-none');
+        };
+
+        // Initialize Socket.IO
+        const socket = io(window.location.origin, {
+            autoConnect: false,
+            withCredentials: true,
+            transports: ['websocket'],
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000
+        });
+
+        // Connection status handling
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            hideConnectionStatus();
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('Connection error:', error);
+            if (error.message === 'Invalid session') {
+                showConnectionStatus('Session expired, refreshing...', 'danger');
+                setTimeout(() => window.location.reload(), 2000);
+            } else {
+                showConnectionStatus('Connection error, retrying...', 'warning');
+            }
+        });
+
+        // Reconnection handling
+        socket.on('reconnect_attempt', (attemptNumber) => {
+            console.log('Attempting to reconnect...', attemptNumber);
+            showConnectionStatus(`Reconnecting... (Attempt ${attemptNumber})`, 'warning');
+        });
+
+        socket.on('reconnect', (attemptNumber) => {
+            console.log('Reconnected after', attemptNumber, 'attempts');
+            showConnectionStatus('Reconnected!', 'success');
+            setTimeout(hideConnectionStatus, 2000);
+            // Get fresh CSRF token
+            fetch('/csrf-token')
+                .then(response => response.json())
+                .then(data => {
+                    document.querySelector('meta[name="csrf-token"]').setAttribute('content', data.token);
+                    // Rejoin game room if needed
+                    const gameData = document.getElementById('gameData');
+                    if (gameData) {
+                        const data = JSON.parse(gameData.dataset.clientData);
+                        socket.emit('player_join', {
+                            ...data,
+                            rejoin: true
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Failed to refresh CSRF token:', error);
+                    window.location.reload();
+                });
+        });
+
+        socket.on('reconnect_failed', () => {
+            console.error('Failed to reconnect');
+            showConnectionStatus('Connection lost. Please refresh the page.', 'danger');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            showConnectionStatus('Disconnected from server...', 'warning');
+        });
+
+        // Connect to Socket.IO when needed
+        if (document.getElementById('gameData')) {
+            socket.connect();
+            socket.on('connect', () => {
+                console.log('Connected to server');
+            });
+            socket.on('error', (error) => {
+                console.error('Socket.IO error:', error);
+            });
+        }
+
+        // Add CSRF token to all fetch requests
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const originalFetch = window.fetch;
+        window.fetch = function(url, options = {}) {
+            options.headers = {
+                ...options.headers,
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json'
+            };
+            options.credentials = 'same-origin';
+            return originalFetch(url, options);
+        };
+    </script>
+    <script src="/js/main.js"></script>
+    <%- typeof extraJs !== 'undefined' ? extraJs : '' %>
+</body>
+</html>

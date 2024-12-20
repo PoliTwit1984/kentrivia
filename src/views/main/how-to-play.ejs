@@ -1,0 +1,151 @@
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <h1 class="display-4 mb-4">How to Play KenTrivia</h1>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="h4 mb-0">
+                        <i class="fas fa-gamepad text-primary"></i> For Players
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <ol class="list-group list-group-flush list-group-numbered">
+                        <li class="list-group-item">
+                            <h5>Join a Game</h5>
+                            <p class="mb-0">
+                                Get the 6-digit Game PIN from your host and enter it on the home page along with your nickname.
+                            </p>
+                        </li>
+                        <li class="list-group-item">
+                            <h5>Wait in the Lobby</h5>
+                            <p class="mb-0">
+                                Once you've joined, you'll enter the game lobby. Wait for the host to start the game.
+                            </p>
+                        </li>
+                        <li class="list-group-item">
+                            <h5>Answer Questions</h5>
+                            <p class="mb-0">
+                                Questions will appear on your screen. Select your answer quickly - faster answers earn more points!
+                            </p>
+                        </li>
+                        <li class="list-group-item">
+                            <h5>Build Your Streak</h5>
+                            <p class="mb-0">
+                                Answer questions correctly in a row to build a streak multiplier and earn bonus points.
+                            </p>
+                        </li>
+                        <li class="list-group-item">
+                            <h5>Check the Leaderboard</h5>
+                            <p class="mb-0">
+                                See how you rank against other players in real-time on the leaderboard.
+                            </p>
+                        </li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="h4 mb-0">
+                        <i class="fas fa-crown text-primary"></i> For Hosts
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <ol class="list-group list-group-flush list-group-numbered">
+                        <li class="list-group-item">
+                            <h5>Create an Account</h5>
+                            <p class="mb-0">
+                                Sign up for a free account to create and manage your own trivia games.
+                            </p>
+                        </li>
+                        <li class="list-group-item">
+                            <h5>Create a Game</h5>
+                            <p class="mb-0">
+                                Create a new game and add your own custom questions, or use our pre-made question sets.
+                            </p>
+                        </li>
+                        <li class="list-group-item">
+                            <h5>Share the PIN</h5>
+                            <p class="mb-0">
+                                Share your game's unique PIN with players. They can enter it on the home page to join.
+                            </p>
+                        </li>
+                        <li class="list-group-item">
+                            <h5>Host the Game</h5>
+                            <p class="mb-0">
+                                Control the game flow, see player answers in real-time, and keep track of scores.
+                            </p>
+                        </li>
+                        <li class="list-group-item">
+                            <h5>Review Results</h5>
+                            <p class="mb-0">
+                                After the game, review player performance and save the results for later.
+                            </p>
+                        </li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="h4 mb-0">
+                        <i class="fas fa-star text-primary"></i> Scoring System
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">
+                            <h5>Base Points</h5>
+                            <p class="mb-0">
+                                Each question is worth up to 1,000 base points.
+                            </p>
+                        </li>
+                        <li class="list-group-item">
+                            <h5>Time Bonus</h5>
+                            <p class="mb-0">
+                                Answer quickly to earn more points. The faster you answer, the more points you get!
+                            </p>
+                        </li>
+                        <li class="list-group-item">
+                            <h5>Streak Multiplier</h5>
+                            <p class="mb-0">
+                                Build a streak by answering questions correctly in a row:
+                                <ul>
+                                    <li>2 correct = 2x multiplier</li>
+                                    <li>3 correct = 3x multiplier</li>
+                                    <li>4+ correct = 4x multiplier</li>
+                                </ul>
+                            </p>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="text-center mt-4">
+                <a href="/" class="btn btn-primary btn-lg">
+                    <i class="fas fa-play"></i> Start Playing
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- contentFor('extraCss') %>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<style>
+.list-group-numbered > .list-group-item {
+    position: relative;
+}
+.list-group-numbered > .list-group-item::before {
+    position: absolute;
+    left: -1.5rem;
+    width: 1.5rem;
+    text-align: center;
+    background-color: var(--bs-primary);
+    color: white;
+    border-radius: 50%;
+    height: 1.5rem;
+    line-height: 1.5rem;
+}
+</style>

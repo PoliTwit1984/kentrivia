@@ -1,0 +1,97 @@
+<div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-4">My Games</h1>
+            <p class="lead">Create and manage your trivia games.</p>
+        </div>
+        <div class="col-auto align-self-center">
+            <a href="/game/create" class="btn btn-primary btn-lg">
+                <i class="fas fa-plus"></i> Create New Game
+            </a>
+        </div>
+    </div>
+
+    <% if (games && games.length > 0) { %>
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            <% games.forEach(game => { %>
+                <div class="col">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <%= game.title %>
+                                <% if (game.is_active) { %>
+                                    <span class="badge bg-success">Active</span>
+                                <% } %>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <strong>Game PIN:</strong>
+                                <span class="game-pin"><%= game.pin %></span>
+                            </div>
+                            <div class="mb-3">
+                                <div class="row">
+                                    <div class="col">
+                                        <i class="fas fa-question-circle"></i>
+                                        <%= game.question_count %> Questions
+                                    </div>
+                                    <div class="col">
+                                        <i class="fas fa-users"></i>
+                                        <%= game.player_count %> Players
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Status:</strong>
+                                <% if (game.started_at && !game.ended_at) { %>
+                                    <span class="text-primary">In Progress</span>
+                                <% } else if (game.ended_at) { %>
+                                    <span class="text-secondary">Completed</span>
+                                <% } else { %>
+                                    <span class="text-success">Ready to Start</span>
+                                <% } %>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="btn-group w-100">
+                                <% if (!game.started_at) { %>
+                                    <a href="/game/edit/<%= game.pin %>" class="btn btn-outline-primary">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </a>
+                                    <a href="/game/host/<%= game.pin %>" class="btn btn-success">
+                                        <i class="fas fa-play"></i> Start
+                                    </a>
+                                <% } else if (!game.ended_at) { %>
+                                    <a href="/game/host/<%= game.pin %>" class="btn btn-primary">
+                                        <i class="fas fa-tv"></i> Host
+                                    </a>
+                                <% } %>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            <% }); %>
+        </div>
+    <% } else { %>
+        <div class="text-center py-5">
+            <div class="display-1 text-muted mb-4">
+                <i class="fas fa-gamepad"></i>
+            </div>
+            <h2>No Games Yet</h2>
+            <p class="lead">Create your first trivia game to get started!</p>
+            <a href="/game/create" class="btn btn-primary btn-lg">
+                Create New Game
+            </a>
+        </div>
+    <% } %>
+</div>
+
+<%- contentFor('extraCss') %>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<style>
+.game-pin {
+    font-family: monospace;
+    font-size: 1.2em;
+    letter-spacing: 0.1em;
+}
+</style>

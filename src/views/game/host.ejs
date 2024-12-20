@@ -1,0 +1,299 @@
+<div id="gameData" data-client-data="<%- JSON.stringify(clientData) %>" style="display: none;"></div>
+<div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-4"><%= game.title %></h1>
+            <p class="lead">
+                Game PIN: <span class="game-pin"><%= game.pin %></span>
+            </p>
+        </div>
+        <div class="col-auto align-self-center">
+            <button id="nextQuestionBtn" class="btn btn-primary btn-lg">
+                <i class="fas fa-forward"></i> Next Question
+            </button>
+        </div>
+    </div>
+
+    <!-- Question Display -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">Current Question</h3>
+                    <div>
+                        <span class="badge bg-primary" id="questionCounter"></span>
+                        <span class="badge bg-info ms-2" id="timeLeft"></span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="waitingScreen" class="text-center py-5">
+                        <div class="display-1 text-muted mb-4">
+                            <i class="fas fa-play-circle"></i>
+                        </div>
+                        <h3>Click "Next Question" to begin</h3>
+                        <p class="text-muted">Players will see the question on their screens</p>
+                    </div>
+
+                    <div id="questionDisplay" style="display: none;">
+                        <h2 id="questionText" class="mb-4"></h2>
+                        <div class="progress mb-4" style="height: 4px;">
+                            <div id="timeProgress" class="progress-bar bg-primary" style="width: 100%;"></div>
+                        </div>
+                        <div id="answerOptions" class="row row-cols-1 row-cols-md-2 g-4"></div>
+                    </div>
+
+                    <div id="resultDisplay" style="display: none;">
+                        <h3 class="mb-4">Question Results</h3>
+                        <div class="row text-center mb-4">
+                            <div class="col">
+                                <h4>Correct Answer</h4>
+                                <p id="correctAnswer" class="lead"></p>
+                            </div>
+                            <div class="col">
+                                <h4>Response Rate</h4>
+                                <p id="responseRate" class="lead"></p>
+                            </div>
+                            <div class="col">
+                                <h4>Accuracy</h4>
+                                <p id="accuracy" class="lead"></p>
+                            </div>
+                        </div>
+                        <div id="answerBreakdown"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <!-- Leaderboard -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">Leaderboard</h3>
+                    <span class="badge bg-primary" id="playerCount">0</span>
+                </div>
+                <div class="card-body">
+                    <div id="leaderboard" class="list-group"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- contentFor('extraCss') %>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<style>
+.game-pin {
+    font-family: monospace;
+    font-size: 1.5em;
+    letter-spacing: 0.1em;
+}
+
+.answer-option {
+    transition: all 0.3s ease;
+}
+
+.answer-option.correct {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.answer-option.incorrect {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+.leaderboard-item {
+    transition: all 0.2s ease;
+}
+
+.leaderboard-item:hover {
+    transform: translateX(5px);
+}
+
+.streak-flame {
+    color: var(--warning-color);
+    animation: flicker 1s infinite;
+}
+
+@keyframes flicker {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+}
+</style>
+
+<%- contentFor('extraJs') %>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    let currentQuestion = null;
+    let timer = null;
+    let answers = new Map();
+
+    // Initialize game data
+    const gameData = JSON.parse(document.getElementById('gameData').dataset.clientData);
+
+    // Join game room
+    socket.emit('player_join', {
+        pin: gameData.pin,
+        host_id: gameData.hostId,
+        is_host: true
+    });
+
+    // Next question button handler
+    document.getElementById('nextQuestionBtn').addEventListener('click', () => {
+        socket.emit('preparing_next_question', { pin: gameData.pin });
+    });
+
+    // Question preparation
+    socket.on('question_preparing', (data) => {
+        showQuestionPrep(data);
+        answers.clear();
+    });
+
+    // Question started
+    socket.on('question_started', (data) => {
+        showQuestion(data);
+        startTimer(data.time_limit);
+    });
+
+    // Answer submitted
+    socket.on('answer_submitted', (data) => {
+        answers.set(data.player_id, {
+            nickname: data.nickname,
+            is_correct: data.is_correct,
+            points_awarded: data.points_awarded
+        });
+        updateAnswerCount();
+    });
+
+    // Question ended
+    socket.on('question_ended', (data) => {
+        showResults(data);
+        if (timer) {
+            clearInterval(timer);
+            timer = null;
+        }
+    });
+
+    // Leaderboard update
+    socket.on('leaderboard_update', (data) => {
+        updateLeaderboard(data.leaderboard);
+    });
+
+    function showQuestionPrep(data) {
+        currentQuestion = data.question;
+        document.getElementById('questionCounter').textContent = 
+            `Question ${data.current_index + 1}/${data.total_questions}`;
+        
+        document.getElementById('waitingScreen').style.display = 'none';
+        document.getElementById('resultDisplay').style.display = 'none';
+        document.getElementById('questionDisplay').style.display = 'block';
+        
+        document.getElementById('questionText').textContent = data.question.content;
+        
+        const options = document.getElementById('answerOptions');
+        options.innerHTML = data.question.answers.map(answer => `
+            <div class="col">
+                <div class="card answer-option h-100" data-answer="${answer}">
+                    <div class="card-body">
+                        <p class="card-text text-center fs-5 mb-0">${answer}</p>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        // Highlight correct answer
+        const correctOption = document.querySelector(`[data-answer="${data.question.correct_answer}"]`);
+        if (correctOption) correctOption.classList.add('correct');
+    }
+
+    function showQuestion(question) {
+        document.getElementById('nextQuestionBtn').disabled = true;
+    }
+
+    function showResults(data) {
+        const resultDisplay = document.getElementById('resultDisplay');
+        const correctAnswer = document.getElementById('correctAnswer');
+        const responseRate = document.getElementById('responseRate');
+        const accuracy = document.getElementById('accuracy');
+        const breakdown = document.getElementById('answerBreakdown');
+
+        // Calculate statistics
+        const totalPlayers = document.getElementById('playerCount').textContent;
+        const responseCount = answers.size;
+        const correctCount = Array.from(answers.values()).filter(a => a.is_correct).length;
+
+        correctAnswer.textContent = data.correct_answer;
+        responseRate.textContent = `${responseCount}/${totalPlayers} (${Math.round(responseCount/totalPlayers*100)}%)`;
+        accuracy.textContent = `${correctCount}/${responseCount} (${Math.round(correctCount/responseCount*100)}%)`;
+
+        // Show answer breakdown
+        breakdown.innerHTML = Array.from(answers.entries()).map(([id, data]) => `
+            <div class="alert ${data.is_correct ? 'alert-success' : 'alert-danger'} d-flex justify-content-between align-items-center">
+                <span>${data.nickname}</span>
+                <span>${data.points_awarded} points</span>
+            </div>
+        `).join('');
+
+        document.getElementById('questionDisplay').style.display = 'none';
+        resultDisplay.style.display = 'block';
+        document.getElementById('nextQuestionBtn').disabled = false;
+
+        // Request updated leaderboard
+        socket.emit('request_leaderboard', { pin: gameData.pin });
+    }
+
+    function startTimer(duration) {
+        const progress = document.getElementById('timeProgress');
+        const timeLeft = document.getElementById('timeLeft');
+        const startTime = Date.now();
+        const endTime = startTime + (duration * 1000);
+
+        if (timer) clearInterval(timer);
+
+        timer = setInterval(() => {
+            const now = Date.now();
+            const remaining = Math.max(0, endTime - now);
+            const percent = (remaining / (duration * 1000)) * 100;
+
+            progress.style.width = `${percent}%`;
+            timeLeft.textContent = `${Math.ceil(remaining / 1000)}s`;
+
+            if (remaining === 0) {
+                clearInterval(timer);
+                timer = null;
+                socket.emit('end_question', {
+                    pin: gameData.pin,
+                    question_id: currentQuestion.id
+                });
+            }
+        }, 50);
+    }
+
+    function updateAnswerCount() {
+        const totalPlayers = document.getElementById('playerCount').textContent;
+        const responseCount = answers.size;
+        document.getElementById('timeLeft').textContent += 
+            ` (${responseCount}/${totalPlayers} answered)`;
+    }
+
+    function updateLeaderboard(players) {
+        const leaderboard = document.getElementById('leaderboard');
+        const playerCount = document.getElementById('playerCount');
+
+        playerCount.textContent = players.length;
+        
+        leaderboard.innerHTML = players.map((player, index) => `
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="badge bg-secondary me-2">#${index + 1}</span>
+                    ${player.nickname}
+                    ${player.streak > 1 ? 
+                        `<i class="fas fa-fire streak-flame ms-2"></i><small>${player.streak}x</small>` : 
+                        ''}
+                </div>
+                <span class="badge bg-primary">${player.score}</span>
+            </div>
+        `).join('');
+    }
+});
+</script>
