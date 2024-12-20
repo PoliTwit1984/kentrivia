@@ -7,15 +7,14 @@ This document provides step-by-step instructions for testing the functionality o
 1. Install the application following README.md instructions
 2. Set up test data:
    ```bash
-   python setup_test_data.py    # Creates test user and game
-   python add_test_questions.py # Adds test questions to the game
+   npm run setup-test-data    # Creates test user and game with questions
    ```
 
 ## Test Environment Setup
 
 1. Run the application:
    ```bash
-   python run.py
+   npm run dev
    ```
 2. Open multiple browser windows/tabs for testing:
    - One for the host

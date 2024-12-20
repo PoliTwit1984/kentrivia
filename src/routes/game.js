@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
+const axios = require('axios');
 const { Game, Question, Player, User } = require('../models');
 const { isAuthenticated } = require('./auth');
+const config = require('../config');
 
 // Game dashboard
 router.get('/dashboard', isAuthenticated, async (req, res) => {
@@ -44,11 +46,14 @@ router.get('/dashboard', isAuthenticated, async (req, res) => {
 
 // Create game
 router.get('/create', isAuthenticated, (req, res) => {
-    res.render('game/create', { title: 'Create Game' });
+    res.render('game/create', { 
+        title: 'Create Game',
+        config: config
+    });
 });
 
 router.post('/create', isAuthenticated, async (req, res) => {
-    const { title } = req.body;
+    const { title, category, numQuestions } = req.body;
     const errors = {};
 
     try {
@@ -56,9 +61,29 @@ router.post('/create', isAuthenticated, async (req, res) => {
             errors.title = 'Title must be between 3 and 64 characters';
         }
 
+        if (!numQuestions || numQuestions < 5 || numQuestions > 50) {
+            errors.numQuestions = 'Number of questions must be between 5 and 50';
+        }
+
         if (Object.keys(errors).length > 0) {
             req.flash('error', errors);
             return res.redirect('/game/create');
+        }
+
+        // Fetch questions from OpenTDB
+        const params = {
+            amount: numQuestions,
+            type: 'multiple'
+        };
+        
+        if (category) {
+            params.category = category;
+        }
+
+        const response = await axios.get(config.openTDB.baseURL, { params });
+        
+        if (response.data.response_code !== 0) {
+            throw new Error('Failed to fetch questions from OpenTDB');
         }
 
         const pin = await Game.generatePin();
@@ -68,7 +93,19 @@ router.post('/create', isAuthenticated, async (req, res) => {
             host_id: req.user.id
         });
 
-        req.flash('success', 'Game created successfully!');
+        // Save questions to database
+        const questions = response.data.results.map(q => ({
+            content: q.question,
+            correct_answer: q.correct_answer,
+            incorrect_answers: q.incorrect_answers,
+            time_limit: 20,
+            points: 1000,
+            game_id: game.id
+        }));
+
+        await Question.bulkCreate(questions);
+
+        req.flash('success', 'Game created successfully with questions from OpenTDB!');
         res.redirect(`/game/edit/${game.pin}`);
     } catch (error) {
         console.error('Error creating game:', error);

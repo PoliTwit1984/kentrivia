@@ -21,6 +21,28 @@
                             </div>
                         </div>
 
+                        <div class="mb-3">
+                            <label for="category" class="form-label">Question Category</label>
+                            <select class="form-select" id="category" name="category">
+                                <option value="">Any Category</option>
+                                <% config.openTDB.categories.forEach(category => { %>
+                                    <option value="<%= category.id %>"><%= category.name %></option>
+                                <% }); %>
+                            </select>
+                            <div class="form-text">
+                                Select a category for your questions or leave as "Any Category" for mixed questions.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="numQuestions" class="form-label">Number of Questions</label>
+                            <input type="number" class="form-control" id="numQuestions" name="numQuestions" 
+                                   value="10" min="5" max="50" required>
+                            <div class="form-text">
+                                Choose how many questions to include (5-50).
+                            </div>
+                        </div>
+
                         <div class="alert alert-info">
                             <h5 class="alert-heading"><i class="fas fa-info-circle"></i> Next Steps</h5>
                             <p class="mb-0">
